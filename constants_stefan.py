@@ -1,13 +1,10 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jul 27 17:15:22 2018
 
 @author: benhills
 """
-
-###############################################################################
-
 
 class constantsUniversal(object):
     """
@@ -22,8 +19,6 @@ class constantsUniversal(object):
         self.R = 8.321                          # Gas Constant J mol-1 K-1
         self.kBoltz = 1.38064852e-23            # m2 kg s-2 K-1
         self.c = 3e8                            # Speed of Light in Free Space m s-1
-
-###############################################################################
 
 class constantsTempCuffPat(object):
     """
@@ -103,12 +98,15 @@ class constantsIceDiver(object):
         self.alphai = self.ki/(self.rhoi*self.ci)
         self.L = 3.335e5                        # Latent Heat of Fusion J kg-1
         # others
-        self.mmass_e = 46.07
-        self.mmass_w=18.02
+        self.rhoe = 789                         # density of ethanol
+        self.mmass_e = 46.07                    # molar mass of ethanol
+        self.mmass_w = 18.02                      # molar mass of water
         self.Kf = -1.99
-        self.ce = 2460.
-        self.cw = 4212.                   # heat capacity for ethanol and water
-        self.kw = 0.555
+        self.ce = 2460.                         # heat capacity of ethanol
+        self.cw = 4212.                   # heat capacity of water
+        self.kw = 0.555                         # thermal conductivity of water
         self.alphaw = self.kw/(self.rhow*self.cw)
+        self.mol_diff = 3e-8                  # TODO: figure out what value to use
         # random
         self.tol = 1e-5                              # tolerance for numerics
+

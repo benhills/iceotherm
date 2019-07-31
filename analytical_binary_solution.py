@@ -8,7 +8,7 @@ Created on Wed Jun 12 09:12:02 2019
 
 import numpy as np
 
-from Constants import *
+from constants import *
 const = constantsTempCuffPat()
 from scipy.optimize import fsolve
 
