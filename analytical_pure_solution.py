@@ -36,6 +36,14 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
 
     Parameters
     ----------
+    rs: array
+        radial distance profile (m)
+    Tinf: float
+        far-field temperature, away from hole (degC)
+    Qmelt: float
+        heat flux for melting (W)
+    Tm: float; optional
+        melting temperature
     t_target: float; optional
         total time of melting (seconds)
     R_target: float; optional
@@ -46,6 +54,17 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
         constants class.
     fluxLoc: string; optional
         location of the heat flux for melting ['Wall' or 'Center']
+
+    Output
+    ----------
+    T: array
+        solution temperatures at the points of the radial distance profile (degC)
+    lam:
+        solved in the transcendental equation (used to get the phase boundary)
+    R_melt:
+        phase boundary location (m)
+    t_melt:
+        time to melt to current phase boundary location (sec)
 
     """
 
@@ -120,6 +139,11 @@ def transcendental(lam,St,Qbar,alphai,alphaw,fluxLoc):
         water diffusivity
     fluxLoc: string
         location of the heat source, 'Wall' for borehole wall and 'Center' for borehole center.
+
+    Output
+    ----------
+    equation to solve in scipy.fsolve.
+
     """
     if fluxLoc == 'Wall':
         rhs = lam**2.
