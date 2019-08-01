@@ -160,6 +160,14 @@ def transcendental(lam,St,Qbar,alphai,alphaw,fluxLoc):
 from scipy.integrate import ode
 
 def analyticalFreeze(self):
+    """
+    Parameters
+    ----------
+
+    Output
+    ----------
+
+    """
     self.r0 = 0.1
     self.rs = np.linspace(0,self.r0,1000)
     self.qdot = self.Q*(self.Tm-self.Tinf)*self.c.ki/(self.r0**2.)
