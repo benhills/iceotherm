@@ -7,79 +7,114 @@ Created on Mon Jul 29 13:39:42 2019
 """
 
 import numpy as np
+from scipy.interpolate import interp1d
 from constants_stefan import constantsIceDiver
 const = constantsIceDiver()
 
-# industrial solvents handbook, percent by mass
-#Tfd = np.load('ethanol_freezingdepression_PBM.npy')
-# linear interpolation between points
-#from scipy.interpolate import interp1d
-#Tfd_interp = interp1d(Tfd[0], Tfd[1])
+# -----------------------------------------------------------------------
 
-def rhoe(T,A=99.39,B=0.31,C=513.18,D=0.305):
-    T = T+const.Tf0
-    return A/(B**(1+(1-T/C)**D))
+# --- Dimensional Conversions --- #
 
-def pbmPBV(pbv,T):
+def C_pbv(C,const=const):
     """
-    Percent by Volume to Percent by Mass
+    Dimensional conversion from concentration to percent by volume
     """
-    # calculate the density of the solution
-    rho_s = const.rhow*(1.-pbv)+rhoe(T)*pbv
-    # calculate the percent by mass of the solution
-    pbm = pbv*(rhoe(T)/rho_s)
-    return pbm
+    pbv = C/const.rhoe
+    return pbv
 
-
-def Tf_depression(C,const=const):
+def C_Molality(C,const=const):
     """
-    Freezing point depression
+    Dimensional conversion from concentration to molality
     """
     # calculate the density of the solution
     rhos = C + const.rhow*(1.-C/const.rhoe)
     # calculate the molality of the solution (mole/kg)
     molality = 1000.*C/(const.mmass_e*(rhos-C))
-    # return the freezing point depression
-    Tf = molality*const.Kf
+    return molality
+
+def C_MoleFrac(C,const=const):
+    """
+    Dimensional conversion from concentration to mole fraction
+    """
+    # calculate the density of the solution
+    rhos = C + const.rhow*(1.-C/const.rhoe)
+    # calculate the mole fraction
+    hold = C*const.mmass_w/(const.mmass_e*rhos)
+    Xe = hold/(1.-C/rhos+hold)
+    return Xe
+
+# -----------------------------------------------------------------------
+
+# --- Aqueous Ethanol Properties --- #
+
+def molDiff(C,T,r=.22e-9,const=const):
+    """
+    Stokes-Einstein relation for molecular diffusivity
+
+    Parameters
+    ----------
+    C: float
+        solution concentration
+    T: float
+        solution temperature
+    r: float; optional
+        particle radius
+    const: class; optional
+
+    Output
+    ---------
+    D: float
+        molecular diffusivity
+    """
+    # if not in K, convert
+    if T < 150:
+        T += const.Tf0
+    eta_s = etaKhattab(C,T)                     # solution viscocity (Pa s)
+    D = const.kBoltz*T/(6.*r*np.pi*eta_s)
+    return D
+
+def etaKhattab(C,T,const=const):
+    """
+    Aquous ethanol viscosity
+    Approximated from  Khattab et al. 2012, eq. 6
+    Uses the Jouyban-Acree model
+    This is still for warm temperatures (~293 K)
+    """
+    # if not in K, convert
+    if T < 200:
+        T += const.Tf0
+    # convert to Mole Fraction
+    Xe = C_MoleFrac(C)
+    Xw = 1.-Xe
+    # viscosity
+    eta_s = np.exp(Xw*np.log(const.etaw)+Xe*np.log(const.etae)+\
+            724.652*(Xw*Xe/T)+729.357*(Xw*Xe*(Xw-Xe)/T)+\
+            976.050*(Xw*Xe*(Xw-Xe)**2./T))
+    return eta_s
+
+def Tf_depression(C,Kf_constant=True,const=const):
+    """
+    Freezing point depression
+    """
+    # Get Molality
+    molality = C_Molality(C)
+    if Kf_constant:
+        Tf = molality*const.Kf
+    else:
+        # TODO: more robust check on this
+        # industrial solvents handbook, percent by mass
+        Tfd = np.load('./ethanol_freezingdepression_PBM.npy')
+        # linear interpolation between points
+        Tfd_interp = interp1d(Tfd[0], Tfd[1])
+        Tf = Tfd_interp(C)
     return Tf
 
 def Hmix(C,const=const):
     """
-    # Enthalpy of mixing
+    # Enthalpy of mixing for aqueous ethanol
+    Peeters and Huyskens (1993) Journal of Molecular Structure
     """
-    # calculate the density of the solution
-    rhos = C + const.rhow*(1.-C/const.rhoe)
     # mole fraction
-    hold = C*const.mmass_w/(const.mmass_e*rhos)
-    Xe = hold/(1-C/rhos+hold)
+    Xe = C_MoleFrac(C)
     Xw = 1.-Xe
     return 1000.*(-10.6*Xw**6.*Xe-1.2*Xw*Xe+.1*Xw*Xe**2.)
-
-def thermalSink(C_inject,C_init,dt,R):
-    """
-    # Energy source based on enthalpy of mixing
-    # TODO: more robust checks on this
-    """
-    # enthalpy of mixing
-    dHmix = Hmix(C_inject)-Hmix(C_init)
-    # energy source (J m-3 s-1)
-    phi = dHmix*1000.*C_inject/(dt*const.mmass_e)
-    # density and heat capacity of the solution
-    rhos = C_inject + const.rhow*(1.-C_inject/const.rhoe)
-    cs = C_inject + const.cw*(1.-C_inject/const.ce)
-    # convert energy source to temperature change
-    dTmix = phi/(2.*np.pi*R**2.*rhos*cs)
-    return dTmix
-
-def molDiff(T,b=6,const=const):
-    """ Stokes-Einstein relation
-    Viscosity approximated from  Khattab et al. 2012,
-    but this is still for warm temperatures (~293 K)"""
-    #eta_w =
-    #eta_e =
-    #eta = eta_w*(1.-C) + eta_e*C
-    eta = 3e-3
-    r = .22e-9
-    return const.kBoltz*T/(b*r*np.pi*eta)
-
-

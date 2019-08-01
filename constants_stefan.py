@@ -90,6 +90,7 @@ class constantsIceDiver(object):
         self.g = 9.81                           # Gravity m s-2
         self.Tf0 = 273.15                        # Reference Tempearature, triple point for water, K
         self.rhow = 1000.                       # Density of water kg m-3
+        self.kBoltz = 1.38064852e-23            # m2 kg s-2 K-1
         # CP (2010) pg. 12
         self.rhoi = 917.                         # Ice Density kg m-3
         # CP (2010) pg. 400
@@ -98,10 +99,12 @@ class constantsIceDiver(object):
         self.alphai = self.ki/(self.rhoi*self.ci)
         self.L = 3.335e5                        # Latent Heat of Fusion J kg-1
         # others
-        self.rhoe = 789                         # density of ethanol
+        self.rhoe = 800                         # approximate density of ethanol at 0degC (Engineering Toolbox)
         self.mmass_e = 46.07                    # molar mass of ethanol
         self.ke = 0.167                         # thermal conductivity of ethanol
+        self.etae = 2.5e-3                      # dynamic viscosity of ethanol (Pa s) (Engineering Toolbox)
         self.mmass_w = 18.02                      # molar mass of water
+        self.etaw = 1.5e-3                      # dynamic viscosity of water (Pa s) (Engineering Toolbox)
         self.Kf = -1.99
         self.ce = 2460.                         # heat capacity of ethanol
         self.cw = 4212.                   # heat capacity of water
@@ -110,4 +113,5 @@ class constantsIceDiver(object):
         self.mol_diff = 3e-8                  # TODO: figure out what value to use
         # random
         self.tol = 1e-5                              # tolerance for numerics
+
 
