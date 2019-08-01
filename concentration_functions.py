@@ -71,4 +71,15 @@ def thermalSink(C_inject,C_init,dt,R):
     dTmix = phi/(2.*np.pi*R**2.*rhos*cs)
     return dTmix
 
+def molDiff(T,b=6,const=const):
+    """ Stokes-Einstein relation
+    Viscosity approximated from  Khattab et al. 2012,
+    but this is still for warm temperatures (~293 K)"""
+    #eta_w =
+    #eta_e =
+    #eta = eta_w*(1.-C) + eta_e*C
+    eta = 3e-3
+    r = .22e-9
+    return const.kBoltz*T/(b*r*np.pi*eta)
+
 
