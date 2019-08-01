@@ -19,13 +19,15 @@ class cylindrical_stefan():
         # Temperature and Concentration Variables
         self.T_inf = -15.                        # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
-        self.Q = 0.0                            # Heat Source after Melting (W)
-        self.Q_melt = 2500.                      # Heat Source for Melting (W)
+        self.Q_wall = 0.0                            # Heat Source after Melting (W)
+        self.Q_initialize = 2500.                      # Heat Source for Melting (W)
+        self.Q_center = 0.0                     # line source at borehole center (W/m?? TODO)
+        self.Q_sol = 0.0
         self.C_init = 0.0                        # Initial Solute Concentration (before injection)
         self.C_inject = 0.2*const.rhoe           # Injection Solute Concentration
 
         # Domain Specifications
-        self.R_center = 0.01                     # Innner Domain Edge
+        self.R_center = 0.001                     # Innner Domain Edge
         self.R_inf = 1.                          # Outer Domain Edge
         self.R_melt = 0.04                          # Melt-Out Radius
         self.n = 100
@@ -44,9 +46,9 @@ class cylindrical_stefan():
         self.Rstar = self.R_melt/self.R_melt
         self.Rstar_center = self.R_center/self.R_melt
         self.Rstar_inf = self.R_inf/self.R_melt
-        self.Qstar = self.Q/(2.*np.pi*const.ki*abs(self.T_inf))
+        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
         self.astar_i = const.L*const.rhoi/(const.rhoi*const.ci*abs(self.T_inf))
-        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_center**2.
+        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
         self.w0 = np.log(self.Rstar)
@@ -63,14 +65,14 @@ class cylindrical_stefan():
         # Finite Element Mesh in solid
         self.ice_mesh = dolfin.IntervalMesh(self.n,self.w0,self.wf)
         self.ice_V = dolfin.FunctionSpace(self.ice_mesh,'CG',1)
-        self.ice_coords = self.ice_V.tabulate_dof_coordinates()
+        self.ice_coords = self.ice_V.tabulate_dof_coordinates().copy()
         self.ice_idx_wall = np.argmin(self.ice_coords)
         # Finite Element Mesh in solution
         if 'solve_sol_temp' in self.flags or 'solve_sol_mol' in self.flags:
             self.sol_mesh = dolfin.IntervalMesh(self.n,self.Rstar_center,self.Rstar)
             self.sol_V = dolfin.FunctionSpace(self.sol_mesh,'CG',1)
-            self.sol_V.tabulate_dof_coordinates()[:] = np.log(self.sol_V.tabulate_dof_coordinates())
-            self.sol_coords = self.sol_V.tabulate_dof_coordinates()
+            self.sol_mesh.coordinates()[:] = np.log(self.sol_mesh.coordinates())
+            self.sol_coords = self.sol_V.tabulate_dof_coordinates().copy()
             self.sol_idx_wall = np.argmax(self.sol_coords)
 
         self.flags.append('get_domain')
@@ -85,13 +87,13 @@ class cylindrical_stefan():
         # --- Initial states --- #
         # (ice temperature)
         self.u0_i = dolfin.Function(self.ice_V)
-        T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.ice_coords[:,0])*self.R_melt,self.T_inf,self.Q_melt,R_target=self.R_melt)
-        self.u0_i.vector()[:] = T[:]/abs(self.T_inf)
+        T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.ice_coords[:,0])*self.R_melt,self.T_inf,self.Q_initialize,R_target=self.R_melt)
+        self.u0_i.vector()[:] = T/abs(self.T_inf)
         if 'solve_sol_temp' in self.flags:
             # (solution temperature),
             self.u0_s = dolfin.Function(self.sol_V)
-            T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.sol_coords[:,0])*self.R_melt,self.T_inf,self.Q_melt,R_target=self.R_melt)
-            self.u0_s.vector()[:] = T[:]/abs(self.T_inf)
+            T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.sol_coords[:,0])*self.R_melt,self.T_inf,self.Q_initialize,R_target=self.R_melt)
+            self.u0_s.vector()[:] = T/abs(self.T_inf)
         if 'solve_sol_mol' in self.flags:
             # (solution concentration),
             self.u0_c = dolfin.interpolate(dolfin.Constant(self.C_init),self.sol_V)
@@ -107,9 +109,10 @@ class cylindrical_stefan():
         self.u_i = dolfin.TrialFunction(self.ice_V)
         self.v_i = dolfin.TestFunction(self.ice_V)
         self.T_i = dolfin.Function(self.ice_V)
-        if 'solve_sol_temp' in self.flags:
+        if 'solve_sol_temp' in self.flags or 'solve_sol_mol' in self.flags:
             self.u_s = dolfin.TrialFunction(self.sol_V)
             self.v_s = dolfin.TestFunction(self.sol_V)
+        if 'solve_sol_temp' in self.flags:
             self.T_s = dolfin.Function(self.sol_V)
         if 'solve_sol_mol' in self.flags:
             self.C = dolfin.Function(self.sol_V)
@@ -118,6 +121,7 @@ class cylindrical_stefan():
             # Get the updated solution properties
             self.rhos = self.C + const.rhow*(1.-self.C/const.rhoe)
             self.cs = (self.C/const.rhoe)*const.ce+(1.-(self.C/const.rhoe))*const.cw
+            self.ks = (self.C/self.rhos)*const.ke+(1.-(self.C/self.rhos))*const.kw
 
         self.flags.append('get_ic')
 
@@ -155,7 +159,7 @@ class cylindrical_stefan():
         mod.bc_inf = dolfin.DirichletBC(mod.ice_V, mod.Tstar, mod.Inf)
 
         # Identify flux boundary for hole wall
-        if 'solve_sol_mol' in mod.flags:
+        if 'solve_sol_temp' in mod.flags or 'solve_sol_mol' in mod.flags:
             # This will be used in the boundary condition for mass diffusion
             mod.boundaries = dolfin.MeshFunction("size_t", mod.sol_mesh, 0) # this index 0 is an alternative to the command boundaries.set_all(0)
             mod.sWall.mark(mod.boundaries, 1)
@@ -180,9 +184,7 @@ class cylindrical_stefan():
         if 'solve_sol_temp' in self.flags:
             self.bc_sWall = dolfin.DirichletBC(self.sol_V, Tf_wall, self.sWall)
 
-
     """
-
     def solve_molecular(self,t):
         ### Inject ethanol
         if abs(t*self.t0-self.t_inject) < const.tol:
@@ -217,33 +219,28 @@ class cylindrical_stefan():
         alphalog_i = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',degree=1,astar=self.astar_i),self.ice_V)
         # Set up the variational form for the current mesh location
         F_i = (self.u_i-self.u0_i)*self.v_i*dolfin.dx + self.dt*dolfin.inner(dolfin.grad(self.u_i), dolfin.grad(alphalog_i*self.v_i))*dolfin.dx
-        #F_i -= dt*(Qsource*t0/abs(T_inf)/(const.rhoi*const.ci))*v_i*dx
         a_i = dolfin.lhs(F_i)
         L_i = dolfin.rhs(F_i)
         # Solve ice temperature
         dolfin.solve(a_i==L_i,self.T_i,[self.bc_inf,self.bc_iWall])
-
+        # Update previous profile to current
         self.u0_i.assign(self.T_i)
 
-        """
-
-        # Source in solution
-        # TODO: change to solution constants
-        #diff_ratio = (const.kw*const.rhoi*const.ci)/(const.ki*const.rhow*const.cw)
-        #alphalog_s = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',astar=self.astar_i*diff_ratio),self.sol_V)
-
-        F_s = (self.u_s-self.u0_s)*self.v_s*dolfin.dx + self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(alphalog_s*self.v_s))*dolfin.dx
-        #F_s -= dt*(Qsource*t0/abs(T_inf)/(const.rhow*const.cw))*v_s*dx
-        # Center heat flux
-        F_s -= (self.Qwater/(const.kw*diff_ratio*2.*np.pi*abs(self.T_inf)))*self.v_s*self.sds(2)
-        a_s = dolfin.lhs(F_s)
-        L_s = dolfin.rhs(F_s)
-
-        # Solve solution temperature
-        dolfin.solve(a_s==L_s,self.T_s,self.bc_sWall)
-        self.u0_s.assign(self.T_s)
-
-        """
+        if 'solve_sol_temp' in self.flags:
+            # TODO: change to solution constants
+            diff_ratio = (self.ks*const.rhoi*const.ci)/(const.ki*self.rhos*self.cs)
+            alphalog_s = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',degree=1,astar=self.astar_i*diff_ratio),self.sol_V)
+            # Set up the variational form for the current mesh location
+            F_s = (self.u_s-self.u0_s)*self.v_s*dolfin.dx + self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(alphalog_s*self.v_s))*dolfin.dx
+                    #- self.dt*(self.Q_sol*self.t0/abs(self.T_inf)/(const.rhoi*const.ci))*self.v_s*dolfin.dx #TODO: check this solution source term
+            # Center heat flux
+            #F_s -= (self.Q_center/(self.ks*diff_ratio*2.*np.pi*abs(self.T_inf)))*self.v_s*self.sds(2)
+            a_s = dolfin.lhs(F_s)
+            L_s = dolfin.rhs(F_s)
+            # Solve solution temperature
+            dolfin.solve(a_s==L_s,self.T_s,self.bc_sWall)
+            # Update previous profile to current
+            self.u0_s.assign(self.T_s)
 
 
     def move_wall(self,const=const):
@@ -266,10 +263,11 @@ class cylindrical_stefan():
         self.dR += dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_i.dx(0),self.ice_V).vector()[self.ice_idx_wall] + \
                     self.Qstar/self.Rstar
         if 'solve_sol_temp' in self.flags:
-            # TODO: change kw to ks
-            self.dR += -(const.kw/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
+            self.dR -= (self.ks/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
         self.dR *= self.dt
 
+        print('wall_loc =',np.exp(self.ice_coords[self.ice_idx_wall,0])+self.dR)
+        print('C = ',self.C)
         # Is the hole completely frozen? If so, exit
         Frozen = np.exp(self.ice_coords[self.ice_idx_wall,0])+self.dR < 0.
         if Frozen:
@@ -285,18 +283,21 @@ class cylindrical_stefan():
         # advect the mesh according to the movement of the hole wall
         dolfin.ALE.move(self.ice_mesh,dolfin.Expression('std::log(exp(x[0])+dRsi*(Rstar_inf-exp(x[0])))-x[0]',degree=1,dRsi=self.dR/(self.Rstar_inf-self.Rstar),Rstar_inf=self.Rstar_inf))
         self.ice_mesh.bounding_box_tree().build(self.ice_mesh)
-        self.ice_coords = self.ice_V.tabulate_dof_coordinates()
+        self.ice_coords = self.ice_V.tabulate_dof_coordinates().copy()
 
-        if 'solve_sol_temp' in self.flags:
+        if 'solve_sol_temp' in self.flags or 'solve_sol_mol' in self.flags:
             # stretch mesh rather than uniform displacement
             dRss = self.dR/(self.Rstar-self.Rstar_center)*(np.exp(self.sol_coords[:,0])-self.Rstar_center)
             # Interpolate the points onto what will be the new mesh (solution)
-            self.u0_s.vector()[:] = np.array([self.u0_s(xi) for xi in np.log(np.exp(self.sol_coords[:,0])+dRss)])
-            self.u0_c.vector()[:] = np.array([self.u0_c(xi) for xi in np.log(np.exp(self.sol_coords[:,0])+dRss)])
+            if 'solve_sol_temp' in self.flags:
+                self.u0_s.vector()[:] = np.array([self.u0_s(xi) for xi in np.log(np.exp(self.sol_coords[:,0])+dRss)])
+            if 'solve_sol_mol' in self.flags:
+                self.u0_c.vector()[:] = np.array([self.u0_c(xi) for xi in np.log(np.exp(self.sol_coords[:,0])+dRss)])
             # advect the mesh according to the movement of teh hole wall
             dolfin.ALE.move(self.sol_mesh,dolfin.Expression('std::log(exp(x[0])+dRs*(exp(x[0])-Rstar_center))-x[0]',
-                dRs=self.dR/(self.Rstar-self.Rstar_center),Rstar_center=self.Rstar_center))
+                degree=1,dRs=self.dR/(self.Rstar-self.Rstar_center),Rstar_center=self.Rstar_center))
             self.sol_mesh.bounding_box_tree().build(self.sol_mesh)
+            self.sol_coords = self.sol_V.tabulate_dof_coordinates().copy()
 
         # --- Recalculate Solution Concentration and Properties --- #
 
@@ -314,6 +315,7 @@ class cylindrical_stefan():
             # Get the updated solution properties
             self.rhos = self.C + const.rhow*(1-self.C/const.rhoe)
             self.cs = (self.C/self.rhos)*const.ce+(1.-(self.C/self.rhos))*const.cw
+            self.ks = (self.C/self.rhos)*const.ke+(1.-(self.C/self.rhos))*const.kw
 
         # Save the new wall location
         self.Rstar = np.exp(self.ice_coords[self.ice_idx_wall,0])
@@ -335,9 +337,10 @@ class cylindrical_stefan():
         ### Iterate ###
 
         self.r_ice_result = [np.exp(self.ice_coords[:,0])*self.R_melt]
-        self.T_result = [np.array(self.u0_i.vector()[:]*abs(self.T_inf))]
+        self.T_ice_result = [np.array(self.u0_i.vector()[:]*abs(self.T_inf))]
         if 'solve_sol_temp' in self.flags or 'solve_sol_mol' in self.flags:
-            self.r_ice_result = [np.exp(self.ice_coords[:,0])*self.R_melt]
+            self.r_sol_result = [np.exp(self.sol_coords[:,0])*self.R_melt]
+            self.T_sol_result = [np.array(self.u0_s.vector()[:]*abs(self.T_inf))]
         for t in self.ts[1:]:
             print(t*self.t0/60.)
 
@@ -369,6 +372,7 @@ class cylindrical_stefan():
             # --- Export --- #
             if t in self.save_times:
                 self.r_ice_result = np.append(self.r_ice_result,[np.exp(self.ice_coords[:,0])*self.R_melt],axis=0)
-                self.T_result = np.append(self.T_result,[self.u0_i.vector()[:]*abs(self.T_inf)],axis=0)
+                self.T_ice_result = np.append(self.T_ice_result,[self.u0_i.vector()[:]*abs(self.T_inf)],axis=0)
                 if 'solve_sol_temp' in self.flags or 'solve_sol_mol' in self.flags:
-                    self.r_sol_result = np.append(self.r_ice_result,[np.exp(self.sol_coords[:,0])*self.R_melt],axis=0)
+                    self.r_sol_result = np.append(self.r_sol_result,[np.exp(self.sol_coords[:,0])*self.R_melt],axis=0)
+                    self.T_sol_result = np.append(self.T_sol_result,[self.u0_s.vector()[:]*abs(self.T_inf)],axis=0)

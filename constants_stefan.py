@@ -100,6 +100,7 @@ class constantsIceDiver(object):
         # others
         self.rhoe = 789                         # density of ethanol
         self.mmass_e = 46.07                    # molar mass of ethanol
+        self.ke = 0.167                         # thermal conductivity of ethanol
         self.mmass_w = 18.02                      # molar mass of water
         self.Kf = -1.99
         self.ce = 2460.                         # heat capacity of ethanol
