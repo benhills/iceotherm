@@ -10,118 +10,177 @@ import numpy as np
 
 from constants_stefan import *
 const = constantsIceDiver()
+from concentration_functions import Tf_depression,molDiff
 from scipy.optimize import fsolve
+from scipy.special import erf,erfc,expi
 
+def diffusivityEps(Tinf,C0,const=const):
+    # get dimensionless diffusivity
+    D = molDiff(C0,Tinf)
+    Lewis_i = const.ki/(const.rhoi*const.ci*D)
+    eps_i = np.sqrt(1./Lewis_i)
+    ks = C0/const.rhoe*const.ke+(1.-C0/const.rhoe)*const.kw
+    rhos = C0+(1.-C0/const.rhoe)*const.rhow
+    cs = (C0/const.rhoe)*const.ce+(1.-(C0/const.rhoe))*const.cw
+    Lewis_s = ks/(rhos*cs*D)
+    eps_s = np.sqrt(1./Lewis_s)
+    return eps_i,eps_s
 
+# ---------------------------------------------------------------------
 
-class binaryWorster():
-
-def molDiff(T,b=6):
-    """ Stokes-Einstein relation
-    Viscosity approximated from  Khattab et al. 2012,
-    but this is still for warm temperatures (~293 K)"""
-    #eta_w =
-    #eta_e =
-    #eta = eta_w*(1.-pbv) + eta_e*pbv
-    eta = 3e-3
-    r = .22e-9
-    return const.kBoltz*T/(b*r*np.pi*eta)
-
-# Freezing point depression
-def pbvMolality(pbv):
-    """ Dimensional conversion from percent by volume to molality """
-    # calculate the density of the solution
-    rho_s = const.rhow*(1.-pbv)+const.rhoe*pbv
-    # calculate the percent by mass of the solution
-    pbm = pbv*(const.rhoe/rho_s)
-    # calculate the molality of the solution (mole/kg)
-    molality = 1000./(const.mmass_e)*pbm/(1-pbm)
-    # return teh freezing point depression
-    return molality
-
-def fTi(Tm,m,Ci):
-    """ Freezing point depression
-    Worster 4.6"""
-    return Tm - m*Ci
-
-def Tsol(eta,lam,m,C0,Tb,Tm,epssol):
-    """ Temperature profile in the solid,
-    Worster 4.8 """
-    return Tb + (fTi(Tm,m,fCi(lam,C0))-Tb)*erf(epssol*eta)/erf(epssol*lam)
-
-def Tliq(eta,lam,m,C0,Tinf,Tm,epsliq):
-    """ Temperature profile in the liquid,
-    Worster 4.9 """
-    return Tinf + (fTi(Tm,m,fCi(lam,C0))-Tinf)*erfc(epsliq*eta)/erfc(epsliq*lam)
-
-def Cliq(eta,lam,C0):
-    """ Concentration in the liquid,
-    Worster 4.10 """
-    return C0 + (fCi(lam,C0)-C0)*erfc(eta)/erfc(lam)
-
-def fCi(lam,C0):
-    """ Concentration from Worster 4.12a """
-    return C0/(1.-np.sqrt(np.pi)*lam*np.exp(lam**2.)*erfc(lam))
-
-def fTrue(lam,Tb,Tinf,m,C0,Tm,epssol,epsliq):
-    """ Optimize for lambda, Worster 4.12b """
-    Ti = fTi(Tm,m,fCi(lam,C0))
-    lhs = const.L/const.ci
-    rhs1 = (Ti-Tb)/(np.sqrt(np.pi)*epssol*lam*np.exp(epssol**2.*lam**2.)*erf(epssol*lam))
-    rhs2 = (Tinf-Ti)/(np.sqrt(np.pi)*epsliq*lam*np.exp(epsliq**2.*lam**2.)*erfc(epsliq*lam))
-    return lhs - rhs1 + rhs2
+# --- Classical Worster Inequality for 1-D Freezing --- #
 
 def F(lam):
-    """ transcendental equation from Worster 4.14 """
+    """
+    Similarity solution from Worster eq. 2.14
+    """
     return np.sqrt(np.pi)*lam*np.exp(lam**2.)*erfc(lam)
 
-def fApprox(lam,scriptC):
-    """ Optimize for lambda, Worster 4.14 approximation """
-    return F(lam)-scriptC
+def G(lam):
+    """
+    Similarity solution from Worster eq. 2.8
+    """
+    return np.sqrt(np.pi)*lam*np.exp(lam**2.)*erf(lam)
 
-def inequality(Tb,Tinf,Tm,eps,m,C0,epssol,epsliq):
-    """ The inequality which describes the conditions under which we have
+def worsterLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
+    """
+    Optimize for lambda, Worster 4.12b
+    """
+    # get dimensionless diffusivity
+    if worsterCheck:
+        eps_i = const.eps_i
+        eps_s = const.eps_s
+    else:
+        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.-F(lam))
+    # Freezing point depression, Worster 4.6
+    Ti = -const.Kf*Ci
+    # Setup the optimization
+    if worsterCheck:
+        lhs = const.LCp
+    else:
+        lhs = const.L/const.ci
+    rhs1 = (Ti-Tb)/G(eps_i*lam)
+    rhs2 = (Tinf-Ti)/F(eps_s*lam)
+    return lhs - rhs1 + rhs2
+
+
+
+def approxLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
+    """
+    Optimize for lambda, Worster 4.14
+    """
+    # Concentration
+    Cb = Tb/const.Kf
+    scriptC = -Cb/(C0-Cb)
+    # Setup the optimization
+    lhs = F(lam)
+    rhs1 = 1./scriptC
+    return lhs - rhs1
+
+
+def worsterInequality(Tb,Tinf,C0,const=const,worsterCheck=False):
+    """
+    The inequality which describes the conditions under which we have
+    constitutional supercooling (i.e. slush), Worster 4.15
+    """
+    # get dimensionless diffusivity
+    if worsterCheck:
+        eps_s = const.eps_s
+        eps_i = const.eps_i
+        lam = fsolve(approxLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
+        #lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
+    else:
+        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+        # solve optimization for lambda
+        lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.-F(lam))
+    # Freezing point depression, Worster 4.6
+    Ti = -const.Kf*Ci
+    return abs(eps_s**2.*(Tinf-Ti)/F(eps_s*lam) - const.Kf*(Ci-C0)/F(lam))
+
+def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,worsterCheck=False):
+
+    # get dimensionless diffusivity
+    if worsterCheck:
+        eps_i = const.eps_i
+        eps_s = const.eps_s
+    else:
+        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.-F(lam))
+    # Freezing point depression, Worster 4.6
+    Ti = -const.Kf*Ci
+    # Temperature profile in the solid, Worster 4.8
+    Tsol = Tb + (Ti-Tb)*erf(eps_i*eta)/erf(eps_i*lam)
+    Tsol[eta>lam] = np.nan
+    # Concentration in the liquid, Worster 4.10
+    Cliq = C0 + (Ci-C0)*erfc(eta)/erfc(lam)
+    Cliq[eta<lam] = np.nan
+    # Temperature profile in the liquid, Worster 4.9
+    Tliq = Tinf + (Ti-Tinf)*erfc(eps_s*eta)/erfc(eps_s*lam)
+    Tliq[eta<lam] = np.nan
+
+    return Tsol,Tliq,Cliq
+
+# ---------------------------------------------------------------------
+
+# --- Adaptation of Worster Inequality for Cylindrical Freezing --- #
+
+def cylindricalLam(lam,Tb,Tinf,C0,Q,const=const):
+    """
+    Optimize for lambda
+    """
+    # get dimensionless diffusivity
+    eps_i,eps_s = diffusivityEps(Tinf,C0,const)
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.+lam**2.*np.exp(lam**2.)*expi(-lam**2.))
+    # Freezing point depression, Worster 4.6
+    Ti = Tf_depression(Ci,const=const)
+    # Setup the optimization
+    lhs = -const.L/const.Cp
+    rhs1 = Q/(4.*np.pi*const.ki*eps_i**2.*lam**2.)
+    rhs2 = (Ti-Tinf)/(eps_s**2.*lam**2.*np.exp(eps_s**2.*lam**2.)*expi(-eps_s**2.*lam**2.))
+    return lhs - rhs1 + rhs2
+
+def cylindricalInequality(Tb,Tinf,C0,const=const):
+    """
+    The inequality which describes the conditions under which we have
     constitutional supercooling (i.e. slush)
-    Worster 4.15 """
-    lam = fsolve(fTrue,0.01,args=(Tb,Tinf,m,C0,Tm,epssol,epsliq))
-    return abs(eps**2.*(Tinf-fTi(Tm,m,fCi(lam,C0)))/F(eps*lam) - m*(fCi(lam,C0)-C0)/F(lam))
+    """
+    # get dimensionless diffusivity
+    eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
 
-def kbar(phi):
-    return phi*const.ki + (1.-phi)*const.kw
+    lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const))
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.-np.sqrt(np.pi)*lam*np.exp(lam**2.)*erfc(lam))
+    # Freezing point depression, Worster 4.6
+    Ti = Tf_depression(Ci,const=const)
+    # transcendental equation from Worster 4.14
+    F = np.sqrt(np.pi)*(eps_s*lam)*np.exp((eps_s*lam)**2.)*erfc(eps_s*lam)
+    return abs(eps_s**2.*(Tinf-Ti)/F + const.Kf*(Ci-C0)/F)
 
-def lamM(Tm,m,D,C0,Tb,phi):
-    S = const.L/(const.ci*(fTi(Tm,m,C0)-Tb))
-    alphai = const.ki/(const.rhoi*const.ci)
-    return np.sqrt((kbar(phi)*alphai)/(2.*S*const.kw*phi*D))
+def cylindricalProfiles(eta,Tb,Tinf,C0,Q,const=const):
 
-'''
-class binaryCylindrical():
+    # get dimensionless diffusivity
+    eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
 
-    def Tsol(eta,lam):
-        flux = (Q/2.*np.pi*const.k)
-        integral = np.log(eta/lam)
-        return flux*integral+Tliq(lam,lam)
+    lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const))
+    # Concentration from Worster 4.12a
+    Ci = C0/(1.-np.sqrt(np.pi)*lam*np.exp(lam**2.)*erfc(lam))
+    # Freezing point depression, Worster 4.6
+    Ti = Tf_depression(Ci,const=const)
+    # Concentration in the liquid
+    Cliq = C0 + (Ci-C0)*expi(-eta**2.)/expi(-lam**2.)
+    # Temperature profile in the solid
+    flux = (Q/2.*np.pi*const.k)
+    integral = np.log(eta/lam)
+    Tsol = flux*integral+Tinf + (Ti-Tinf)*expi(-eps_s**2.*lam**2.)/expi(-eps_s**2.*lam**2.)
+    # Temperature profile in the liquid
+    Tliq = Tinf + (Ti-Tinf)*expi(-eps_s**2.*eta**2.)/expi(-eps_s**2.*lam**2.)
 
-    def Tliq(eta,lam):
-        return Tinf + (fTi(lam)-Tinf)*expi(-epsliq**2.*eta**2.)/expi(-epsliq**2.*lam**2.)
+    return Tsol,Tliq,Cliq
 
-    def Cliq(eta,lam):
-        return C0 + (fCi(lam)-C0)*expi(-eta**2.)/expi(-lam**2.)
-
-    def fCi(lam):
-        return C0/(1.+lam**2.*np.exp(lam**2.)*expi(-lam**2.))
-
-    def fTi(lam):
-        return Tm - m*fCi(lam)
-
-    def f2(lam):
-        Ti = fTi(lam)
-        lhs = -const.L/const.Cp
-        rhs1 = Q/(4.*np.pi*const.k*epssol**2.*lam**2.)
-        rhs2 = (Ti-Tinf)/(epsliq**2.*lam**2.*np.exp(epsliq**2.*lam**2.)*expi(-epsliq**2.*lam**2.))
-        return lhs - rhs1 - rhs2
-
-    lam = fsolve(f2,1.)[0]
-
-
-'''

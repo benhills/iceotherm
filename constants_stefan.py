@@ -110,8 +110,48 @@ class constantsIceDiver(object):
         self.cw = 4212.                   # heat capacity of water
         self.kw = 0.555                         # thermal conductivity of water
         self.alphaw = self.kw/(self.rhow*self.cw)
-        self.mol_diff = 3e-8                  # TODO: figure out what value to use
+        self.mol_diff = 1.24e-9                  # molecular diffusivity of aqueous ethanol at 25degC (Cussler (1997))
         # random
         self.tol = 1e-5                              # tolerance for numerics
 
+### Constants
+class constantsWorster(object):
+    """
+    Temperature Constants
+
+    From Worster Solidification of Fluids
+    """
+    def __init__(self):
+        # general
+        self.rhow = 1000.                       # Density of water kg m-3
+        """
+        # CP (2010) pg. 12
+        self.rhoi = 917.                         # Ice Density kg m-3
+        # CP (2010) pg. 400
+        self.ki = 2.1                            # Thermal Conductivity J m-1 K-1 s-1
+        self.ci = 2097.                         # Specific Heat Capacity J kg-1 K-1
+        self.alphai = self.ki/(self.rhoi*self.ci)
+        self.L = 3.335e5                        # Latent Heat of Fusion J kg-1
+        """
+        # worster
+        self.Tinf = 20.
+        self.eps = 0.05
+        self.LCp = 80.
+        # others
+        self.rhoe = 800                         # approximate density of ethanol at 0degC (Engineering Toolbox)
+        self.mmass_e = 46.07                    # molar mass of ethanol
+        self.mmass_w = 18.02                      # molar mass of water
+        """
+        self.ke = 0.167                         # thermal conductivity of ethanol
+        self.etae = 2.5e-3                      # dynamic viscosity of ethanol (Pa s) (Engineering Toolbox)
+        self.etaw = 1.5e-3                      # dynamic viscosity of water (Pa s) (Engineering Toolbox)
+        self.ce = 2460.                         # heat capacity of ethanol
+        self.cw = 4212.                   # heat capacity of water
+        self.kw = 0.555                         # thermal conductivity of water
+        self.alphaw = self.kw/(self.rhow*self.cw)
+        self.mol_diff = 1.24e-9                  # molecular diffusivity of aqueous ethanol at 25degC (Cussler (1997))
+        """
+
+
+        self.Kf = -.5
 

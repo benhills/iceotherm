@@ -9,7 +9,7 @@ Created on Mon Jul 29 13:39:42 2019
 import numpy as np
 from analytical_pure_solution import analyticalMelt
 from constants_stefan import constantsIceDiver
-from concentration_functions import Tf_depression
+from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 const.mol_diff = 1e-7
 import dolfin
@@ -237,6 +237,7 @@ class cylindrical_stefan():
             self.ks = (self.C/const.rhoe)*const.ke+(1.-(self.C/const.rhoe))*const.kw
             self.rhos_wall,self.cs_wall,self.ks_wall = self.rhos,self.cs,self.ks
 
+
     def solve_thermal(self):
 
         ### Solve heat equation
@@ -264,6 +265,20 @@ class cylindrical_stefan():
             dolfin.solve(a_s==L_s,self.T_s,self.bc_sWall)
             # Update previous profile to current
             self.u0_s.assign(self.T_s)
+
+    def thermalSink(self):
+        """
+        # Energy source based on enthalpy of mixing
+        # TODO: more robust checks on this
+        """
+        # enthalpy of mixing
+        dHmix = Hmix(self.C_inject)-Hmix(self.C_init)
+        # energy source (J m-3 s-1)
+        phi = dHmix*1000.*self.C_inject/(self.dt*const.mmass_e)
+        # convert energy source to temperature change
+        dTmix = phi/(2.*np.pi*self.Rstar**2.*self.rhos*self.cs)
+        return dTmix
+
 
 
     def move_wall(self,const=const):

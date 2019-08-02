@@ -15,6 +15,14 @@ const = constantsIceDiver()
 
 # --- Dimensional Conversions --- #
 
+def pbm_C(pbm,const=const):
+    # calculate the density of the solution
+    rhos = C + const.rhow*(1.-C/const.rhoe)
+    # percent by volume
+    pbv = pbm*(rhos/const.rhoe)
+    C = pbv*const.rhoe
+    return C
+
 def C_pbv(C,const=const):
     """
     Dimensional conversion from concentration to percent by volume
