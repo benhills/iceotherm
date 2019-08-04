@@ -15,7 +15,7 @@ const = constantsIceDiver()
 from scipy.special import expi
 from scipy.optimize import fsolve
 
-def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=const,fluxLoc='Wall'):
+def analyticalMelt(rs,T_inf,Q_melt,Tf=0,t_target=0,R_target=0,target='Dist',const=const,fluxLoc='Wall'):
     """
     Analytical Solution for borehole melting in cylindrical coordinates.
 
@@ -38,12 +38,12 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
     ----------
     rs: array
         radial distance profile (m)
-    Tinf: float
+    T_inf: float
         far-field temperature, away from hole (degC)
-    Qmelt: float
+    Q_melt: float
         heat flux for melting (W)
-    Tm: float; optional
-        melting temperature
+    Tf: float; optional
+        freezing temperature
     t_target: float; optional
         total time of melting (seconds)
     R_target: float; optional
@@ -71,9 +71,9 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
     # --- Setup --- #
 
     # Solve for the Stefan number
-    St = const.ci*(Tm-Tinf)/const.L
+    St = const.ci*(Tf-T_inf)/const.L
     # Nondimensionalize the heat flux
-    Qbar = Qmelt/(4.*np.pi*const.alphai*const.rhoi*const.L)
+    Qbar = Q_melt/(4.*np.pi*const.alphai*const.rhoi*const.L)
 
     # --- Phase Boundary --- #
 
@@ -93,7 +93,7 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
     if fluxLoc == 'Wall':
         Tw = np.zeros_like(rs)
     else:
-        Tw = Tm + (-Qmelt/(4.*np.pi*const.kw))*\
+        Tw = Tf + (-Q_melt/(4.*np.pi*const.kw))*\
             (expi(-rs**2./(4.*const.alphaw*t_melt))-\
             expi(-(const.alphai/const.alphaw)*lam**2.))
     # nan where there is ice instead of water
@@ -102,7 +102,7 @@ def analyticalMelt(rs,Tinf,Qmelt,Tm=0,t_target=0,R_target=0,target='Dist',const=
     # --- Ice Temperature --- #
 
     # Solve for the ice temperature
-    Ti = Tinf - ((Tinf-Tm)/expi(-lam**2.))*\
+    Ti = T_inf - ((T_inf-Tf)/expi(-lam**2.))*\
             expi(-rs**2./(4.*const.alphai*t_melt))
     # nan where there is water instead of ice
     Ti[rs<=R_melt] = np.nan
@@ -159,72 +159,117 @@ def transcendental(lam,St,Qbar,alphai,alphaw,fluxLoc):
 
 from scipy.integrate import ode
 
-def analyticalFreeze(self):
+def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     """
+
+
     Parameters
     ----------
+    r0: float
+        outer wall radius
+    T_inf: float
+        far-field temperature
+    Q_sol: float
+        heat source inside the hole
+    n: int, optional
+        number of points
+    Tf: float, optional
+        freezing temperature
+    const: class, optional
+        constants
+    verbose: boolean, optional
+        print output in ODE loop
 
     Output
     ----------
+    T_out: 2-D array
+        resulting temperatures at each time step
+    R_out: 1-D array
+        resulting hole wall radius through time
+    rs: 1-D array
+        radial distances at which temperatures are output
+    ts: 1-D array
+        times
 
     """
-    self.r0 = 0.1
-    self.rs = np.linspace(0,self.r0,1000)
-    self.qdot = self.Q*(self.Tm-self.Tinf)*self.c.ki/(self.r0**2.)
-    self.t0 = 0.
-    self.tf = 10.*self.r0**2./(self.c.ki/(self.c.rhoi*self.c.ci))
-    self.dt = self.tf/100.
-    self.ts = np.arange(self.t0,self.tf,self.dt)
 
-    S = ode(self.f,self.jac).set_integrator('vode', method='bdf', with_jacobian=True)
-    S.set_initial_value(.9*self.r0, self.t0)
+    # --- Setup --- #
 
-    self.R = S.y[0]
-    Tw = self.qdot*self.R**2./(4.*const.kw)*(1.-self.rs**2./self.R**2.) + self.Tm
-    Ti = iceTemperature(self)
+    rs = np.linspace(0,r0,n)
+    qdot = Q_sol*(Tf-T_inf)*const.ki/(r0**2.)
+    t0 = 0.
+    tf = 10.*r0**2./(const.ki/(const.rhoi*const.ci))
+    dt = tf/100.
+    ts = np.arange(t0,tf,dt)
 
-    self.T[0,self.rs<self.R] = self.Tw[self.rs<self.R]
-    self.T[0,self.rs==self.R] = self.Tm
-    self.T[0,self.rs>self.R] = self.Ti[self.rs>self.R]
+    # --- Define ODE --- #
+
+    S = ode(f,jac).set_integrator('vode', method='bdf', with_jacobian=True)
+    S.set_initial_value(.9*r0, t0).set_f_params(r0,qdot,Tf,T_inf,const).set_jac_params(r0,qdot,const)
+
+    # --- Initial Output --- #
+
+    R_out = np.nan*np.ones(len(ts))
+    T_out = np.nan*np.ones((len(ts),len(rs)))
+
+    R = S.y[0]
+    R_out[0] = R
+    T_out[0] = freezingTemperature(r0,R,rs,T_inf,qdot,Tf,const)
+
+    # --- Iterate on the ODE --- #
 
     i = 1
-    while self.S.successful() and self.S.t < self.tf:
-        self.S.integrate(self.S.t+self.dt)
-        print("%s: %g %g" % (i, self.S.t*(self.c.ki/(self.c.rhoi*self.c.ci))/(self.r0**2.), self.S.y/self.r0))
-
-        self.R = S.y[0]
-        Tw = self.qdot*self.R**2./(4.*const.kw)*(1.-self.rs**2./self.R**2.) + self.Tm
-        Ti = iceTemperature(self)
-
-        self.T[i,self.rs<self.R] = Tw[self.rs<self.R]
-        self.T[i,self.rs==self.R] = self.Tm
-        self.T[i,self.rs>self.R] = Ti[self.rs>self.R]
+    while S.successful() and S.t < tf:
+        S.integrate(S.t+dt)
+        if verbose:
+            print("%s: %g %g" % (i, S.t*(const.alpha_i)/(r0**2.), S.y/r0))
+        R = S.y[0]
+        R_out[i] = R
+        T_out[i] = freezingTemperature(r0,R,rs,T_inf,qdot,Tf,const)
         i+=1
 
+    return T_out,R_out,rs,ts
 
-def f(self,t,R,const=const):
+
+def f(t,R,r0,qdot,Tf,T_inf,const=const):
     """
     Function to integrate
     """
-    top = (R**2.-self.r0**2.)*self.qdot+4.*const.ki*(self.Tm-self.Tinf)
-    bottom = const.rhoi*const.L*4.*R*(np.log(R)-np.log(self.r0))
+    top = (R**2.-r0**2.)*qdot+4.*const.ki*(Tf-T_inf)
+    bottom = const.rhoi*const.L*4.*R*(np.log(R)-np.log(r0))
     return top/bottom
 
-def jac(self,t,R,const=const):
+def jac(t,R,r0,qdot,const=const):
     """
     Jacobian
     """
-    bottom = np.log(R)-np.log(self.r0)
-    return self.qdot/(4.*const.rhoi*const.L)*(1/bottom-1./bottom**2.)
+    bottom = np.log(R)-np.log(r0)
+    return qdot/(4.*const.rhoi*const.L)*(1/bottom-1./bottom**2.)
 
-def iceTemperature(self,const=const):
+def freezingTemperature(r0,R,rs,T_inf,qdot,Tf=0,const=const):
     """
     Calculate the ice temperature in the freezing case.
     """
-    term1 = -self.qdot*self.rs**2./(4*const.ki)
-    term2 = (self.R**2.*np.log(self.r0)-self.r0**2.*np.log(self.R)-\
-            (self.R**2.-self.r0**2.)*np.log(self.rs))*self.qdot
-    term3 = 4.*const.ki*(self.Tm*np.log(self.r0)-\
-            self.Tinf*np.log(self.R)-(self.Tm-self.Tinf)*np.log(self.rs))
-    term4 = 4.*const.ki*(np.log(self.R)-np.log(self.r0))
-    return term1-(term2+term3)/term4
+
+    # --- Ice Temperature --- #
+
+    term1 = -qdot*rs**2./(4*const.ki)
+    term2 = (R**2.*np.log(r0)-r0**2.*np.log(R)-\
+            (R**2.-r0**2.)*np.log(rs))*qdot
+    term3 = 4.*const.ki*(Tf*np.log(r0)-\
+            T_inf*np.log(R)-(Tf-T_inf)*np.log(rs))
+    term4 = 4.*const.ki*(np.log(R)-np.log(r0))
+
+    T_ice = term1-(term2+term3)/term4
+
+    # --- Solution Temperature --- #
+
+    T_sol = qdot*R**2./(4.*const.kw)*(1.-rs**2./R**2.) + Tf
+
+    # --- Total Temerature --- #
+
+    T = T_ice
+    T[rs==R] = Tf
+    T[rs<R] = T_sol[rs<R]
+
+    return T
