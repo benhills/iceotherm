@@ -11,7 +11,6 @@ from analytical_pure_solution import analyticalMelt
 from constants_stefan import constantsIceDiver
 from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
-const.mol_diff = 1e-7
 import dolfin
 dolfin.parameters['allow_extrapolation']=True
 
@@ -26,6 +25,7 @@ class cylindrical_stefan():
         self.Q_sol = 0.0
         self.C_init = 0.0                        # Initial Solute Concentration (before injection)
         self.C_inject = 0.2*const.rhoe           # Injection Solute Concentration
+        self.mol_diff = 1.24e-9
 
         # Domain Specifications
         self.R_center = 0.001                     # Innner Domain Edge
@@ -53,7 +53,7 @@ class cylindrical_stefan():
 
         # Dimensionless Constants
         self.St = const.ci*(self.Tf-self.T_inf)/const.L
-        self.Lewis = const.ki/(const.rhoi*const.ci*const.mol_diff)
+        self.Lewis = const.ki/(const.rhoi*const.ci*self.mol_diff)
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
         self.w0 = np.log(self.Rstar)
@@ -196,18 +196,23 @@ class cylindrical_stefan():
 
     def solve_molecular(self):
         """
+
         """
         if 'solve_sol_mol' in self.flags:
             # Solve solution concentration
             # Diffusivity
-            Dlog_c = dolfin.project(dolfin.Expression('mol_diff*exp(-2.*x[0])',degree=1,mol_diff=self.astar_i/self.Lewis),self.sol_V)
+            #self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
+            L = dolfin.Expression('Lewis*(1-.005*pow(max(maxx-x[0],0.01),-1))',degree=1,
+                                  Lewis=self.Lewis,maxx=np.nanmax(self.sol_coords))
+            self.D = dolfin.project(dolfin.Expression('astar_i/L*exp(-2.*x[0])',degree=1,
+                                                 astar_i=self.astar_i,L=L),self.sol_V)
             # calculate solute flux
             Cwall = self.u0_c(self.sol_coords[self.sol_idx_wall])
-            Dwall = Dlog_c(self.sol_coords[self.sol_idx_wall])
+            Dwall = self.D(self.sol_coords[self.sol_idx_wall])
             solFlux = dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
             # Variational Problem
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
-                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(Dlog_c*self.v_s))*dolfin.dx + \
+                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx + \
                     self.dt*solFlux*self.v_s*self.sds(1)
             a_c = dolfin.lhs(F_c)
             L_c = dolfin.rhs(F_c)
@@ -345,7 +350,7 @@ class cylindrical_stefan():
         self.En = self.Tstar*(np.exp(self.Rstar_inf)**2.-np.exp(self.Rstar)**2.)
     """
 
-    def run(self):
+    def run(self,verbose=False):
         ### Iterate ###
 
         self.r_ice_result = [np.exp(self.ice_coords[:,0])*self.R_melt]
@@ -357,7 +362,8 @@ class cylindrical_stefan():
         if 'solve_sol_mol' in self.flags:
             self.Tf_result = [Tf_depression(np.array(self.u0_c.vector()[:]))]
         for t in self.ts[1:]:
-            print(t*self.t0/60.)
+            if verbose:
+                print(round(t*self.t0/60.),end='min , ')
 
             # --- Ethanol Injection --- #
             if t == self.t_inject:
