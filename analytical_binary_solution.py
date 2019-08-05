@@ -72,11 +72,11 @@ def approxLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
     Optimize for lambda, Worster 4.14
     """
     # Concentration
-    Cb = Tb/const.Kf
+    Cb = -Tb/const.Kf
     scriptC = -Cb/(C0-Cb)
     # Setup the optimization
-    lhs = F(lam)
-    rhs1 = 1./scriptC
+    lhs = F(lam)*scriptC
+    rhs1 = 1.
     return lhs - rhs1
 
 
@@ -89,8 +89,8 @@ def worsterInequality(Tb,Tinf,C0,const=const,worsterCheck=False):
     if worsterCheck:
         eps_s = const.eps_s
         eps_i = const.eps_i
-        lam = fsolve(approxLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
-        #lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
+        #lam = fsolve(approxLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
+        lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
     else:
         eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
         # solve optimization for lambda

@@ -161,7 +161,13 @@ from scipy.integrate import ode
 
 def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     """
+    A quasi-static approximation for freezing in a cylinder
+    Crepeau and Siahpush 2008
 
+    The domain starts as a liquid and slowly freezes in from the edges.
+    They apply a source throughout the domain (solid and liquid) because they
+    are using this for nuclear reactor design, but one can simply turn
+    off the source and the approximation holds.
 
     Parameters
     ----------
@@ -236,6 +242,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
 def f(t,R,r0,qdot,Tf,T_inf,const=const):
     """
     Function to integrate
+    Crepeau and Siahpush eq. 9
     """
     top = (R**2.-r0**2.)*qdot+4.*const.ki*(Tf-T_inf)
     bottom = const.rhoi*const.L*4.*R*(np.log(R)-np.log(r0))
@@ -243,7 +250,8 @@ def f(t,R,r0,qdot,Tf,T_inf,const=const):
 
 def jac(t,R,r0,qdot,const=const):
     """
-    Jacobian
+    Jacobian for ODE integration
+    Derivative of Crepeau and Siahpush eq. 9
     """
     bottom = np.log(R)-np.log(r0)
     return qdot/(4.*const.rhoi*const.L)*(1/bottom-1./bottom**2.)
@@ -251,9 +259,35 @@ def jac(t,R,r0,qdot,const=const):
 def freezingTemperature(r0,R,rs,T_inf,qdot,Tf=0,const=const):
     """
     Calculate the ice temperature in the freezing case.
+    This is to be done at each time step after the integration.
+    Crepeau and Siahpush (2008)
+
+    Parameters
+    -----------
+    r0: float
+        outer radius of domain
+    R: float
+        phase-boundary radius
+    rs: array
+        radial distance for output array
+    T_inf: float
+        far-field temperature
+    qdot: float
+        internal heat generation
+    Tf: float, optional
+        freezing temperature
+    const: const, optional
+        constants class
+
+    Output
+    -----------
+    T: array
+        Full temperature profile in solid and liquid regions
+
     """
 
     # --- Ice Temperature --- #
+    # Crepeau and Siahpush eq. 7
 
     term1 = -qdot*rs**2./(4*const.ki)
     term2 = (R**2.*np.log(r0)-r0**2.*np.log(R)-\
@@ -265,6 +299,7 @@ def freezingTemperature(r0,R,rs,T_inf,qdot,Tf=0,const=const):
     T_ice = term1-(term2+term3)/term4
 
     # --- Solution Temperature --- #
+    # Creqeau and Siahpush eq. 3
 
     T_sol = qdot*R**2./(4.*const.kw)*(1.-rs**2./R**2.) + Tf
 
