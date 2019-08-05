@@ -204,18 +204,18 @@ class cylindrical_stefan():
         if 'solve_sol_mol' in self.flags:
             # Solve solution concentration
             # Diffusivity
-            #self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
-            L = dolfin.Expression('Lewis*(1-.005*pow(max(maxx-x[0],0.01),-1))',degree=1,
-                                  Lewis=self.Lewis,maxx=np.nanmax(self.sol_coords))
-            self.D = dolfin.project(dolfin.Expression('astar_i/L*exp(-2.*x[0])',degree=1,
-                                                 astar_i=self.astar_i,L=L),self.sol_V)
+            self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
+            #L = dolfin.Expression('Lewis*(1-.005*pow(max(maxx-x[0],0.01),-1))',degree=1,
+            #                      Lewis=self.Lewis,maxx=np.nanmax(self.sol_coords))
+            #self.D = dolfin.project(dolfin.Expression('astar_i/L*exp(-2.*x[0])',degree=1,
+            #                                     astar_i=self.astar_i,L=L),self.sol_V)
             # calculate solute flux
             Cwall = self.u0_c(self.sol_coords[self.sol_idx_wall])
             Dwall = self.D(self.sol_coords[self.sol_idx_wall])
-            solFlux = dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
+            solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
             # Variational Problem
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
-                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx + \
+                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx - \
                     self.dt*solFlux*self.v_s*self.sds(1)
             a_c = dolfin.lhs(F_c)
             L_c = dolfin.rhs(F_c)
@@ -286,6 +286,19 @@ class cylindrical_stefan():
         # convert energy source to temperature change
         dTmix = phi/(2.*np.pi*self.Rstar**2.*self.rhos*self.cs)
         return dTmix
+
+    def injection(self):
+        self.Tf_last = Tf_depression(self.C)
+        if 'solve_sol_mol' in self.flags:
+            self.u0_c.vector()[:] = self.C_inject
+            self.u0_s.vector()[:] = Tf_depression(self.C_inject)/abs(self.T_inf)
+            # TODO: add thermal sink from mixing
+            #self.inject_mass = self.C_inject*(np.exp(self.Rstar)**2.-np.exp(self.R_center)**2.)
+        else:
+            self.C = self.C_inject
+            # TODO: add thermal sink from mixing
+            #self.thermalSink()
+
 
     def move_wall(self,const=const):
         """
@@ -380,16 +393,7 @@ class cylindrical_stefan():
 
             # --- Ethanol Injection --- #
             if t == self.t_inject:
-                self.Tf_last = Tf_depression(self.C)
-                if 'solve_sol_mol' in self.flags:
-                    self.u0_c.vector()[:] = self.C_inject
-                    self.u0_s.vector()[:] = Tf_depression(self.C_inject)/abs(self.T_inf)
-                    # TODO: add thermal sink from mixing
-                    #self.inject_mass = self.C_inject*(np.exp(self.Rstar)**2.-np.exp(self.R_center)**2.)
-                else:
-                    self.C = self.C_inject
-                    # TODO: add thermal sink from mixing
-                    #self.thermalSink()
+                self.injection()
 
             # --- Move the Mesh --- #
             self.move_wall()
