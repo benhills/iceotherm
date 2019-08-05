@@ -12,7 +12,6 @@ from constants_stefan import constantsIceDiver
 from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin
-dolfin.parameters['allow_extrapolation']=True
 
 class cylindrical_stefan():
     def __init__(self,const=const):
@@ -292,8 +291,9 @@ class cylindrical_stefan():
         """
 
         # --- Calculate Distance Wall Moves --- #
-        # calculate sensible heat constibution toward wall melting associated with change in the freezing temp
+        # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
         if 'solve_sol_mol' in self.flags:
+            # TODO: fix this movement, it shouldn't be 0.
             self.dR = 0.
         else:
             self.dR = np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
@@ -317,7 +317,11 @@ class cylindrical_stefan():
         # stretch mesh rather than uniform displacement
         dRsi = self.dR/(self.Rstar_inf-self.Rstar)*(self.Rstar_inf-np.exp(self.ice_coords[:,0]))
         # Interpolate the points onto what will be the new mesh (ice)
-        self.u0_i.vector()[:] = np.array([self.u0_i(xi) for xi in np.log(np.exp(self.ice_coords[:,0])+dRsi)])
+        self.idx_ice = np.exp(self.ice_coords[:,0]) + self.dR >= self.Rstar
+        u0_hold = self.u0_i.vector()[:].copy()
+        u0_hold[self.idx_ice] = np.array([self.u0_i(xi) for xi in np.log(np.exp(self.ice_coords[self.idx_ice,0])+dRsi[self.idx_ice])])
+        u0_hold[~self.idx_ice][:] = self.Tf
+        self.u0_i.vector()[:] = u0_hold[:]
         # advect the mesh according to the movement of the hole wall
         dolfin.ALE.move(self.ice_mesh,dolfin.Expression('std::log(exp(x[0])+dRsi*(Rstar_inf-exp(x[0])))-x[0]',degree=1,dRsi=self.dR/(self.Rstar_inf-self.Rstar),Rstar_inf=self.Rstar_inf))
         self.ice_mesh.bounding_box_tree().build(self.ice_mesh)
