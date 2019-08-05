@@ -15,6 +15,10 @@ import dolfin
 
 class cylindrical_stefan():
     def __init__(self,const=const):
+        """
+        Initial Variables
+        """
+
         # Temperature and Concentration Variables
         self.T_inf = -15.                        # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
@@ -41,6 +45,12 @@ class cylindrical_stefan():
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
     def log_transform(self,const=const):
+        """
+        Nondimensionalize and transform to logarithmic coordinates.
+        This puts most of the points near the borehole wall and actually makes the
+        math more like the cartesian diffusion problem.
+        """
+
         # Nondimensionalize (Humphrey and Echelmeyer, 1990)
         self.Tstar = self.T_inf/abs(self.T_inf)
         self.Rstar = self.R_melt/self.R_melt
@@ -66,6 +76,7 @@ class cylindrical_stefan():
         """
         Define the Finite Element domain for the problem
         """
+
         # Finite Element Mesh in solid
         self.ice_mesh = dolfin.IntervalMesh(self.n,self.w0,self.wf)
         self.ice_V = dolfin.FunctionSpace(self.ice_mesh,'CG',1)
@@ -142,8 +153,9 @@ class cylindrical_stefan():
 
     def get_boundary_conditions(mod):
         """
-        ### Define Boundary Conditions ###
+        Define Boundary Conditions
         """
+
         # Left boundary is the center of the borehole, so it is at the melting temperature
         class iWall(dolfin.SubDomain):
             def inside(self, x, on_boundary):
@@ -183,6 +195,10 @@ class cylindrical_stefan():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
     def update_boundary_conditions(self):
+        """
+        Update the boundary conditions for new wall location and new wall temperature.
+        """
+
         # Update the thermal boundary condition at the wall based on the current concentration
         # update the melting temperature
         self.Tf = Tf_depression(self.C)
@@ -199,17 +215,15 @@ class cylindrical_stefan():
 
     def solve_molecular(self):
         """
-
+        Solve the molecular diffusion problem
+        if 'solve_sol_mol' is not in the flags list this will be an instantaneous mixing problem.
         """
+
         if 'solve_sol_mol' in self.flags:
             # Solve solution concentration
             # Diffusivity
             self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
-            #L = dolfin.Expression('Lewis*(1-.005*pow(max(maxx-x[0],0.01),-1))',degree=1,
-            #                      Lewis=self.Lewis,maxx=np.nanmax(self.sol_coords))
-            #self.D = dolfin.project(dolfin.Expression('astar_i/L*exp(-2.*x[0])',degree=1,
-            #                                     astar_i=self.astar_i,L=L),self.sol_V)
-            # calculate solute flux
+            # calculate solute flux (this is like the Stefan condition for the molecular diffusion problem
             Cwall = self.u0_c(self.sol_coords[self.sol_idx_wall])
             Dwall = self.D(self.sol_coords[self.sol_idx_wall])
             solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
@@ -247,6 +261,10 @@ class cylindrical_stefan():
 
 
     def solve_thermal(self):
+        """
+        Solve the thermal diffusion problem.
+        Both ice and solution.
+        """
 
         ### Solve heat equation
         alphalog_i = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',degree=1,astar=self.astar_i),self.ice_V)
@@ -277,8 +295,9 @@ class cylindrical_stefan():
     def thermalSink(self):
         """
         # Energy source based on enthalpy of mixing
-        # TODO: more robust checks on this
         """
+        # TODO: more robust checks on this
+
         # enthalpy of mixing
         dHmix = Hmix(self.C_inject)-Hmix(self.C_init)
         # energy source (J m-3 s-1)
@@ -288,6 +307,10 @@ class cylindrical_stefan():
         return dTmix
 
     def injection(self):
+        """
+        At the time of injection assume that melting happens all at once
+        """
+
         self.Tf_last = Tf_depression(self.C)
         if 'solve_sol_mol' in self.flags:
             self.u0_c.vector()[:] = self.C_inject
@@ -299,10 +322,10 @@ class cylindrical_stefan():
             # TODO: add thermal sink from mixing
             #self.thermalSink()
 
-
     def move_wall(self,const=const):
         """
-        # Melting/Freezing at the hole wall
+        Melting/Freezing at the hole wall
+        This is the Stefan condition.
         """
 
         # --- Calculate Distance Wall Moves --- #
@@ -377,7 +400,9 @@ class cylindrical_stefan():
     """
 
     def run(self,verbose=False):
-        ### Iterate ###
+        """
+        Iterate the model through the given time array.
+        """
 
         self.r_ice_result = [np.exp(self.ice_coords[:,0])*self.R_melt]
         self.T_ice_result = [np.array(self.u0_i.vector()[:]*abs(self.T_inf))]
@@ -411,10 +436,6 @@ class cylindrical_stefan():
 
             # --- Thermal Diffusion --- #
             self.solve_thermal()
-
-            ### TODO: Freezing in hole
-            # Hard reset on temps below Tf
-            # Ice concentration
 
             # Save the new wall location
             self.Rstar = np.exp(self.ice_coords[self.ice_idx_wall,0])
