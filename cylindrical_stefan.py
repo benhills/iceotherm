@@ -19,15 +19,19 @@ class cylindrical_stefan():
         Initial Variables
         """
 
-        # Temperature and Concentration Variables
+        # Temperature Variables
         self.T_inf = -15.                       # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
         self.Q_wall = 0.0                       # Heat Source after Melting (W)
         self.Q_initialize = 2500.               # Heat Source for Melting (W)
         self.Q_center = 0.0                     # line source at borehole center (W/m?? TODO)
         self.Q_sol = 0.0
-        self.C_init = 0.0                        # Initial Solute Concentration (before injection)
-        self.C_inject = 0.2*const.rhoe           # Injection Solute Concentration
+
+        # Concentration Variables
+        self.source_timing = np.nan
+        self.source_duration = 0.
+        self.C_init = 0.0                       # Initial Solute Concentration (before injection)
+        self.source_mass_final = 1.            # Total Injection Mass
         self.mol_diff = 1.24e-9
 
         # Domain Specifications
@@ -117,7 +121,10 @@ class cylindrical_stefan():
         # Now that we have the melt-out time, we can define the time array
         self.ts = np.arange(self.t_melt,self.t_final+self.dt,self.dt)/self.t0
         self.dt /= self.t0
-        self.t_inject = self.ts[np.argmin(abs(self.ts-self.t_inject/self.t0))]
+        # Define the ethanol source
+        self.source_timing = self.ts[np.argmin(abs(self.ts-self.source_timing/self.t0))]
+        self.source_duration /= self.t0
+        self.source = self.source_mass_final/(self.source_duration*np.sqrt(np.pi))*np.exp(-((self.ts-self.source_timing)/self.source_duration)**2.)
 
         # --- Define the test and trial functions --- #
         self.u_i = dolfin.TrialFunction(self.ice_V)
@@ -253,13 +260,12 @@ class cylindrical_stefan():
         else:
             # Instantaneous Mixing
             # Recalculate the solution concentration after wall moves
-            self.C_last = self.C
             self.C *= (self.Rstar/np.exp(self.ice_coords[self.ice_idx_wall,0]))**2.
             # Recalculate the freezing temperature
             self.Tf_last = self.Tf
             self.Tf = Tf_depression(self.C)
             # Get the updated solution properties
-            self.rhos = self.C + const.rhow*(1-self.C/const.rhoe)
+            self.rhos = self.C + const.rhow*(1.-self.C/const.rhoe)
             self.cs = (self.C/const.rhoe)*const.ce+(1.-(self.C/const.rhoe))*const.cw
             self.ks = (self.C/const.rhoe)*const.ke+(1.-(self.C/const.rhoe))*const.kw
             self.rhos_wall,self.cs_wall,self.ks_wall = self.rhos,self.cs,self.ks
@@ -296,32 +302,34 @@ class cylindrical_stefan():
             # Update previous profile to current
             self.u0_s.assign(self.T_s)
 
-    def injection_energy_balance(self):
+    def injection_energy_balance(self,source):
         """
         At the time of injection assume that melting happens all at once
         """
 
+        # Calculate the injection source actually adds to total concentration
+        C_inject = source*self.dt/(np.pi*(self.Rstar*self.R_melt)**2.)/const.rhoe
+
         # Hard set on concentration (assume that it mixes quickly)
         if 'solve_sol_mol' in self.flags:
-            self.u0_c.vector()[:] = self.C_inject
+            self.u0_c.vector()[:] += C_inject
         else:
-            self.C = self.C_inject
+            self.C += C_inject
 
         # enthalpy of mixing, always exothermic so gives off energy (J m-3)
         # put this added energy toward uniformly warming the solution
-        H,phi = Hmix(self.C_inject)
-        rhos = self.C_inject + const.rhow*(1.-self.C_inject/const.rhoe)
-        cs = (self.C_inject/const.rhoe)*const.ce+(1.-(self.C_inject/const.rhoe))*const.cw
-        phi_dT = -phi/(rhos*cs)
+        H,phi = Hmix(C_inject)
+        #phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)
+        phi_dT = -phi/(const.rhow*const.cw)/abs(self.T_inf)
 
         # Hard set on solution temperature (assume that the mixing energy spreads evenly)
         if 'solve_sol_temp' in self.flags:
-            self.u0_s.vector()[:] = (Tf_depression(self.C_init)+phi_dT)/abs(self.T_inf)
+            self.u0_s.vector()[:] += dolfin.project(phi_dT,self.sol_V).vector()[:]
         else:
             self.Tf = Tf_depression(self.C)/abs(self.T_inf)
             # Bump the last freezing temperature up
             # this way the mixing enthalpy is accounted for in wall movement
-            self.Tf_last = (Tf_depression(self.C_init)+phi_dT)/abs(self.T_inf)
+            self.Tf_last = (Tf_depression(self.C-C_inject)+phi_dT)/abs(self.T_inf)
 
     def move_wall(self,const=const):
         """
@@ -407,13 +415,12 @@ class cylindrical_stefan():
             self.T_sol_result = [np.array(self.u0_s.vector()[:]*abs(self.T_inf))]
         if 'solve_sol_mol' in self.flags:
             self.Tf_result = [Tf_depression(np.array(self.u0_c.vector()[:]))]
-        for t in self.ts[1:]:
+        for i,t in enumerate(self.ts[1:]):
             if verbose:
                 print(round(t*self.t0/60.),end='min , ')
 
             # --- Ethanol Injection --- #
-            if t == self.t_inject:
-                self.injection_energy_balance()
+            self.injection_energy_balance(self.source[i+1])
 
             # --- Thermal Diffusion --- #
             self.update_boundary_conditions()
@@ -427,8 +434,7 @@ class cylindrical_stefan():
                 break
 
             # --- Molecular Diffusion --- #
-            if t >= (self.t_inject):
-                self.solve_molecular()
+            self.solve_molecular()
 
             # Save the new wall location
             self.Rstar = np.exp(self.ice_coords[self.ice_idx_wall,0])
