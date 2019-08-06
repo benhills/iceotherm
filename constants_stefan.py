@@ -100,7 +100,7 @@ class constantsIceDiver(object):
         self.L = 3.335e5                        # Latent Heat of Fusion J kg-1
         # others
         self.rhoe = 800                         # approximate density of ethanol at 0degC (Engineering Toolbox)
-        self.mmass_e = 46.07                    # molar mass of ethanol
+        self.mmass_e = 46.07                    # molar mass of ethanol (g/mol)
         self.ke = 0.167                         # thermal conductivity of ethanol
         self.etae = 2.5e-3                      # dynamic viscosity of ethanol (Pa s) (Engineering Toolbox)
         self.mmass_w = 18.02                      # molar mass of water

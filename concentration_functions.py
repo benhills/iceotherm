@@ -15,14 +15,6 @@ const = constantsIceDiver()
 
 # --- Dimensional Conversions --- #
 
-def pbm_C(pbm,const=const):
-    # calculate the density of the solution
-    rhos = C + const.rhow*(1.-C/const.rhoe)
-    # percent by volume
-    pbv = pbm*(rhos/const.rhoe)
-    C = pbv*const.rhoe
-    return C
-
 def C_pbv(C,const=const):
     """
     Dimensional conversion from concentration to percent by volume
@@ -125,4 +117,6 @@ def Hmix(C,const=const):
     # mole fraction
     Xe = C_MoleFrac(C)
     Xw = 1.-Xe
-    return 1000.*(-10.6*Xw**6.*Xe-1.2*Xw*Xe+.1*Xw*Xe**2.)
+    H = 1000.*(-10.6*Xw**6.*Xe-1.2*Xw*Xe+.1*Xw*Xe**2.)  # Enthalpy of mixing (J/mol)
+    phi = H*C/(const.mmass_e/1000.)                     # Energy density (J m-3)
+    return H,phi

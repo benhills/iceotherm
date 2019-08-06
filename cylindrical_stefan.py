@@ -227,6 +227,7 @@ class cylindrical_stefan():
             Cwall = self.u0_c(self.sol_coords[self.sol_idx_wall])
             Dwall = self.D(self.sol_coords[self.sol_idx_wall])
             solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
+            # TODO: Set the points that moved out of the grid
             # Variational Problem
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
                     self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx - \
@@ -292,35 +293,32 @@ class cylindrical_stefan():
             # Update previous profile to current
             self.u0_s.assign(self.T_s)
 
-    def thermalSink(self):
-        """
-        # Energy source based on enthalpy of mixing
-        """
-        # TODO: more robust checks on this
-
-        # enthalpy of mixing
-        dHmix = Hmix(self.C_inject)-Hmix(self.C_init)
-        # energy source (J m-3 s-1)
-        phi = dHmix*1000.*self.C_inject/(self.dt*const.mmass_e)
-        # convert energy source to temperature change
-        dTmix = phi/(2.*np.pi*self.Rstar**2.*self.rhos*self.cs)
-        return dTmix
-
-    def injection(self):
+    def injection_energy_balance(self):
         """
         At the time of injection assume that melting happens all at once
         """
 
-        self.Tf_last = Tf_depression(self.C)
+        # Hard set on concentration (assume that it mixes quickly)
         if 'solve_sol_mol' in self.flags:
             self.u0_c.vector()[:] = self.C_inject
-            self.u0_s.vector()[:] = Tf_depression(self.C_inject)/abs(self.T_inf)
-            # TODO: add thermal sink from mixing
-            #self.inject_mass = self.C_inject*(np.exp(self.Rstar)**2.-np.exp(self.R_center)**2.)
         else:
             self.C = self.C_inject
-            # TODO: add thermal sink from mixing
-            #self.thermalSink()
+
+        # enthalpy of mixing, always exothermic so gives off energy (J m-3)
+        # put this added energy toward uniformly warming the solution
+        H,phi = Hmix(self.C_inject)
+        rhos = self.C_inject + const.rhow*(1.-self.C_inject/const.rhoe)
+        cs = (self.C_inject/const.rhoe)*const.ce+(1.-(self.C_inject/const.rhoe))*const.cw
+        phi_dT = -phi/(rhos*cs)
+
+        # Hard set on solution temperature (assume that the mixing energy spreads evenly)
+        if 'solve_sol_temp' in self.flags:
+            self.u0_s.vector()[:] = (Tf_depression(self.C_init)+phi_dT)/abs(self.T_inf)
+        else:
+            self.Tf = Tf_depression(self.C)/abs(self.T_inf)
+            # Bump the last freezing temperature up
+            # this way the mixing enthalpy is accounted for in wall movement
+            self.Tf_last = (Tf_depression(self.C_init)+phi_dT)/abs(self.T_inf)
 
     def move_wall(self,const=const):
         """
@@ -329,20 +327,18 @@ class cylindrical_stefan():
         """
 
         # --- Calculate Distance Wall Moves --- #
-        # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
-        if 'solve_sol_mol' in self.flags:
-            # TODO: fix this movement, it shouldn't be 0.
-            self.dR = 0.
-        else:
-            self.dR = np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
 
-        # melting/freezing at the hole wall from prescribed flux and temperature gradient
+        # Melting/freezing at the hole wall from prescribed flux and temperature gradient
         # Humphrey and Echelmeyer (1990) eq. 13
-        self.dR += dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_i.dx(0),self.ice_V).vector()[self.ice_idx_wall] + \
+        dRdt = dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_i.dx(0),self.ice_V).vector()[self.ice_idx_wall] + \
                     self.Qstar/self.Rstar
         if 'solve_sol_temp' in self.flags:
-            self.dR -= (self.ks_wall/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
-        self.dR *= self.dt
+            # second half of the Stefan condition
+            dRdt -= (self.ks_wall/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
+        else:
+            # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
+            dRdt += (1./self.dt)*np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
+        self.dR = dRdt*self.dt
 
         # Is the hole completely frozen? If so, exit
         Frozen = np.exp(self.ice_coords[self.ice_idx_wall,0])+self.dR < 0.
@@ -378,7 +374,7 @@ class cylindrical_stefan():
             if 'solve_sol_mol' in self.flags:
                 u0_c_hold = self.u0_c.vector()[:].copy()
                 u0_c_hold[self.idx_sol] = np.array([self.u0_c(xi) for xi in np.log(np.exp(self.sol_coords[self.idx_sol,0])+dRss[self.idx_sol])])
-                u0_c_hold[~self.idx_sol] = 0. #TODO: test this
+                u0_c_hold[~self.idx_sol] = np.nan
                 self.u0_c.vector()[:] = u0_c_hold[:]
             # advect the mesh according to the movement of teh hole wall
             dolfin.ALE.move(self.sol_mesh,dolfin.Expression('std::log(exp(x[0])+dRs*(exp(x[0])-Rstar_center))-x[0]',
@@ -418,7 +414,7 @@ class cylindrical_stefan():
 
             # --- Ethanol Injection --- #
             if t == self.t_inject:
-                self.injection()
+                self.injection_energy_balance()
 
             # --- Move the Mesh --- #
             self.move_wall()
