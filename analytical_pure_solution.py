@@ -213,7 +213,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     S = ode(f,jac).set_integrator('vode', method='bdf', with_jacobian=True)
     S.set_f_params(r0,qdot,Tf,T_inf,const)
     S.set_jac_params(r0,qdot,const)
-    S.set_initial_value(.9*r0, t0)
+    S.set_initial_value(r0, t0)
 
     # --- Initial Output --- #
 
