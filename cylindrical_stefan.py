@@ -20,10 +20,10 @@ class cylindrical_stefan():
         """
 
         # Temperature and Concentration Variables
-        self.T_inf = -15.                        # Far Field Temperature
+        self.T_inf = -15.                       # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
-        self.Q_wall = 0.0                            # Heat Source after Melting (W)
-        self.Q_initialize = 2500.                      # Heat Source for Melting (W)
+        self.Q_wall = 0.0                       # Heat Source after Melting (W)
+        self.Q_initialize = 2500.               # Heat Source for Melting (W)
         self.Q_center = 0.0                     # line source at borehole center (W/m?? TODO)
         self.Q_sol = 0.0
         self.C_init = 0.0                        # Initial Solute Concentration (before injection)
@@ -201,10 +201,11 @@ class cylindrical_stefan():
 
         # Update the thermal boundary condition at the wall based on the current concentration
         # update the melting temperature
-        self.Tf = Tf_depression(self.C)
+        self.Tf = Tf_depression(self.u0_c)
         self.Tf /= abs(self.T_inf)
         if 'solve_sol_mol' in self.flags:
             self.Tf_wall = dolfin.project(self.Tf,self.sol_V).vector()[self.sol_idx_wall]
+            self.C_wall = dolfin.project(self.u0_c,self.sol_V).vector()[self.sol_idx_wall]
         else:
             self.Tf_wall = self.Tf
         # Reset ice boundary condition
@@ -224,14 +225,18 @@ class cylindrical_stefan():
             # Diffusivity
             self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
             # calculate solute flux (this is like the Stefan condition for the molecular diffusion problem
-            Cwall = self.u0_c(self.sol_coords[self.sol_idx_wall])
             Dwall = self.D(self.sol_coords[self.sol_idx_wall])
-            solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(Cwall/Dwall)*(self.dR/self.dt))
-            # TODO: Set the points that moved out of the grid
+            # TODO: is this correct? Do I really need the wall location?
+            self.solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(self.C_wall/Dwall)*(self.dR/self.dt))
+            # Set the concentration for points that moved out of the grid to match the solute flux
+            u0_c_hold = self.u0_c.vector()[:].copy()
+            u0_c_hold[~self.sol_idx_extrapolate] = self.C_wall+self.solFlux*(np.exp(self.sol_coords[~self.sol_idx_extrapolate,0])-self.Rstar)
+            u0_c_hold[u0_c_hold<0.]=0.
+            self.u0_c.vector()[:] = u0_c_hold[:]
             # Variational Problem
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
                     self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx - \
-                    self.dt*solFlux*self.v_s*self.sds(1)
+                    self.dt*self.solFlux*self.v_s*self.sds(1)
             a_c = dolfin.lhs(F_c)
             L_c = dolfin.rhs(F_c)
             dolfin.solve(a_c==L_c,self.C)
@@ -259,7 +264,6 @@ class cylindrical_stefan():
             self.cs = (self.C/const.rhoe)*const.ce+(1.-(self.C/const.rhoe))*const.cw
             self.ks = (self.C/const.rhoe)*const.ke+(1.-(self.C/const.rhoe))*const.kw
             self.rhos_wall,self.cs_wall,self.ks_wall = self.rhos,self.cs,self.ks
-
 
     def solve_thermal(self):
         """
@@ -351,10 +355,10 @@ class cylindrical_stefan():
         # stretch mesh rather than uniform displacement
         dRsi = self.dR/(self.Rstar_inf-self.Rstar)*(self.Rstar_inf-np.exp(self.ice_coords[:,0]))
         # Interpolate the points onto what will be the new mesh (ice)
-        self.idx_ice = np.exp(self.ice_coords[:,0]) + self.dR >= self.Rstar
+        self.ice_idx_extrapolate = np.exp(self.ice_coords[:,0]) + self.dR >= self.Rstar
         u0_i_hold = self.u0_i.vector()[:].copy()
-        u0_i_hold[self.idx_ice] = np.array([self.u0_i(xi) for xi in np.log(np.exp(self.ice_coords[self.idx_ice,0])+dRsi[self.idx_ice])])
-        u0_i_hold[~self.idx_ice] = self.Tf_wall
+        u0_i_hold[self.ice_idx_extrapolate] = np.array([self.u0_i(xi) for xi in np.log(np.exp(self.ice_coords[self.ice_idx_extrapolate,0])+dRsi[self.ice_idx_extrapolate])])
+        u0_i_hold[~self.ice_idx_extrapolate] = self.Tf_wall
         self.u0_i.vector()[:] = u0_i_hold[:]
         # advect the mesh according to the movement of the hole wall
         dolfin.ALE.move(self.ice_mesh,dolfin.Expression('std::log(exp(x[0])+dRsi*(Rstar_inf-exp(x[0])))-x[0]',degree=1,dRsi=self.dR/(self.Rstar_inf-self.Rstar),Rstar_inf=self.Rstar_inf))
@@ -365,16 +369,16 @@ class cylindrical_stefan():
             # stretch mesh rather than uniform displacement
             dRss = self.dR/(self.Rstar-self.Rstar_center)*(np.exp(self.sol_coords[:,0])-self.Rstar_center)
             # Interpolate the points onto what will be the new mesh (solution)
-            self.idx_sol = np.exp(self.sol_coords[:,0]) + self.dR <= self.Rstar
+            self.sol_idx_extrapolate = np.exp(self.sol_coords[:,0]) + self.dR <= self.Rstar
             if 'solve_sol_temp' in self.flags:
                 u0_s_hold = self.u0_s.vector()[:].copy()
-                u0_s_hold[self.idx_sol] = np.array([self.u0_s(xi) for xi in np.log(np.exp(self.sol_coords[self.idx_sol,0])+dRss[self.idx_sol])])
-                u0_s_hold[~self.idx_sol] = self.Tf_wall
+                u0_s_hold[self.sol_idx_extrapolate] = np.array([self.u0_s(xi) for xi in np.log(np.exp(self.sol_coords[self.sol_idx_extrapolate,0])+dRss[self.sol_idx_extrapolate])])
+                u0_s_hold[~self.sol_idx_extrapolate] = self.Tf_wall
                 self.u0_s.vector()[:] = u0_s_hold[:]
             if 'solve_sol_mol' in self.flags:
                 u0_c_hold = self.u0_c.vector()[:].copy()
-                u0_c_hold[self.idx_sol] = np.array([self.u0_c(xi) for xi in np.log(np.exp(self.sol_coords[self.idx_sol,0])+dRss[self.idx_sol])])
-                u0_c_hold[~self.idx_sol] = np.nan
+                u0_c_hold[self.sol_idx_extrapolate] = np.array([self.u0_c(xi) for xi in np.log(np.exp(self.sol_coords[self.sol_idx_extrapolate,0])+dRss[self.sol_idx_extrapolate])])
+                u0_c_hold[~self.sol_idx_extrapolate] = np.nan
                 self.u0_c.vector()[:] = u0_c_hold[:]
             # advect the mesh according to the movement of teh hole wall
             dolfin.ALE.move(self.sol_mesh,dolfin.Expression('std::log(exp(x[0])+dRs*(exp(x[0])-Rstar_center))-x[0]',
@@ -423,14 +427,12 @@ class cylindrical_stefan():
                 print('Frozen Hole!')
                 break
 
-            # --- Boundary Conditions --- #
-            self.update_boundary_conditions()
-
             # --- Molecular Diffusion --- #
             if t >= (self.t_inject):
                 self.solve_molecular()
 
             # --- Thermal Diffusion --- #
+            self.update_boundary_conditions()
             self.solve_thermal()
 
             # Save the new wall location
