@@ -201,7 +201,7 @@ class cylindrical_stefan():
 
         # Update the thermal boundary condition at the wall based on the current concentration
         # update the melting temperature
-        self.Tf = Tf_depression(self.u0_c)
+        self.Tf = Tf_depression(self.C)
         self.Tf /= abs(self.T_inf)
         if 'solve_sol_mol' in self.flags:
             self.Tf_wall = dolfin.project(self.Tf,self.sol_V).vector()[self.sol_idx_wall]
@@ -223,11 +223,10 @@ class cylindrical_stefan():
         if 'solve_sol_mol' in self.flags:
             # Solve solution concentration
             # Diffusivity
-            self.D = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
+            self.Dstar = dolfin.project(dolfin.Expression('diff_ratio*exp(-2.*x[0])',degree=1,diff_ratio=self.astar_i/self.Lewis),self.sol_V)
             # calculate solute flux (this is like the Stefan condition for the molecular diffusion problem
-            Dwall = self.D(self.sol_coords[self.sol_idx_wall])
-            # TODO: is this correct? Do I really need the wall location?
-            self.solFlux = -dolfin.Constant(np.exp(self.sol_coords[self.sol_idx_wall,0])*(self.C_wall/Dwall)*(self.dR/self.dt))
+            Dwall = self.Dstar(self.sol_coords[self.sol_idx_wall])
+            self.solFlux = -(self.C_wall/Dwall)*(self.dR/self.dt)
             # Set the concentration for points that moved out of the grid to match the solute flux
             u0_c_hold = self.u0_c.vector()[:].copy()
             u0_c_hold[~self.sol_idx_extrapolate] = self.C_wall+self.solFlux*(np.exp(self.sol_coords[~self.sol_idx_extrapolate,0])-self.Rstar)
@@ -235,7 +234,7 @@ class cylindrical_stefan():
             self.u0_c.vector()[:] = u0_c_hold[:]
             # Variational Problem
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
-                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.D*self.v_s))*dolfin.dx - \
+                    self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.Dstar*self.v_s))*dolfin.dx - \
                     self.dt*self.solFlux*self.v_s*self.sds(1)
             a_c = dolfin.lhs(F_c)
             L_c = dolfin.rhs(F_c)
@@ -341,7 +340,8 @@ class cylindrical_stefan():
             dRdt -= (self.ks_wall/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
         else:
             # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
-            dRdt += (1./self.dt)*np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
+            # TODO: unit check here
+            dRdt += np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
         self.dR = dRdt*self.dt
 
         # Is the hole completely frozen? If so, exit
@@ -387,17 +387,12 @@ class cylindrical_stefan():
             self.sol_coords = self.sol_V.tabulate_dof_coordinates().copy()
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
-    """
     def conservation(self,const=const):
-        x_exp = dolfin.Expression('pow(exp(x[0]),2)')
-        #print "Conservation: ", const.cw*const.rhow*assemble(x_exp*u0_s*dx)+\
-                                #const.ci*const.rhoi*assemble(x_exp*u0_i*dx)# - En_init
-        if (self.t*self.t0-const.tol) >= self.t_inject:
-            print("Mass conserveation: ", dolfin.assemble(x_exp*u0_c*dx))# - inject_mass
-
-
-        self.En = self.Tstar*(np.exp(self.Rstar_inf)**2.-np.exp(self.Rstar)**2.)
-    """
+        x_exp = dolfin.Expression('pow(exp(x[0]),2)',degree=1)
+        self.EnCon = dolfin.assemble(self.cs*self.rhos*x_exp*self.u0_s*dolfin.dx)+\
+                        const.ci*const.rhoi*dolfin.assemble(x_exp*self.u0_i*dolfin.dx)
+        self.MassCon = dolfin.assemble(x_exp*self.u0_c*dolfin.dx)
+        return
 
     def run(self,verbose=False):
         """
@@ -420,6 +415,10 @@ class cylindrical_stefan():
             if t == self.t_inject:
                 self.injection_energy_balance()
 
+            # --- Thermal Diffusion --- #
+            self.update_boundary_conditions()
+            self.solve_thermal()
+
             # --- Move the Mesh --- #
             self.move_wall()
             # break the loop if the hole is completely frozen
@@ -430,10 +429,6 @@ class cylindrical_stefan():
             # --- Molecular Diffusion --- #
             if t >= (self.t_inject):
                 self.solve_molecular()
-
-            # --- Thermal Diffusion --- #
-            self.update_boundary_conditions()
-            self.solve_thermal()
 
             # Save the new wall location
             self.Rstar = np.exp(self.ice_coords[self.ice_idx_wall,0])
