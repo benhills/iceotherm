@@ -212,7 +212,7 @@ class cylindrical_stefan():
         self.Tf /= abs(self.T_inf)
         if 'solve_sol_mol' in self.flags:
             self.Tf_wall = dolfin.project(self.Tf,self.sol_V).vector()[self.sol_idx_wall]
-            self.C_wall = dolfin.project(self.u0_c,self.sol_V).vector()[self.sol_idx_wall]
+            self.C_wall = dolfin.project(self.C,self.sol_V).vector()[self.sol_idx_wall]
         else:
             self.Tf_wall = self.Tf
         # Reset ice boundary condition
@@ -243,17 +243,36 @@ class cylindrical_stefan():
             F_c = (self.u_s-self.u0_c)*self.v_s*dolfin.dx + \
                     self.dt*dolfin.inner(dolfin.grad(self.u_s), dolfin.grad(self.Dstar*self.v_s))*dolfin.dx - \
                     self.dt*self.solFlux*self.v_s*self.sds(1)
-            a_c = dolfin.lhs(F_c)
-            L_c = dolfin.rhs(F_c)
-            dolfin.solve(a_c==L_c,self.C)
+            F_c = dolfin.action(F_c,self.C)
+            # First derivative
+            J = dolfin.derivative(F_c, self.C, self.u_s)
+            # handle the bounds
+            lower = dolfin.project(dolfin.Constant(0.0),self.sol_V)
+            upper = dolfin.project(dolfin.Constant(const.rhoe),self.sol_V)
+            # set bounds and solve
+            snes_solver_parameters = {"nonlinear_solver": "snes",
+                                      "snes_solver": {"linear_solver": "lu",
+                                                      "maximum_iterations": 20,
+                                                      "report": True,
+                                                      "error_on_nonconvergence": False}}
+            problem = dolfin.NonlinearVariationalProblem(F_c, self.C, J=J)
+            problem.set_bounds(lower, upper)
+            solver = dolfin.NonlinearVariationalSolver(problem)
+            solver.parameters.update(snes_solver_parameters)
+            dolfin.info(solver.parameters, True)
+            (iter, converged) = solver.solve()
             self.u0_c.assign(self.C)
+
             # Recalculate the freezing temperature
             self.Tf_last = self.Tf
             self.Tf = Tf_depression(self.C.vector()[self.sol_idx_wall,0])
             # Get the updated solution properties
-            self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',degree=1,C=self.C,rhow=const.rhow,rhoe=const.rhoe),self.sol_V)
-            self.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',degree=1,C=self.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),self.sol_V)
-            self.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',degree=1,C=self.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),self.sol_V)
+            self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',
+                degree=1,C=self.C,rhow=const.rhow,rhoe=const.rhoe),self.sol_V)
+            self.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',
+                degree=1,C=self.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),self.sol_V)
+            self.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',
+                degree=1,C=self.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),self.sol_V)
             self.rhos_wall = self.rhos.vector()[self.sol_idx_wall]
             self.cs_wall = self.cs.vector()[self.sol_idx_wall]
             self.ks_wall = self.ks.vector()[self.sol_idx_wall]
@@ -308,10 +327,11 @@ class cylindrical_stefan():
         """
 
         # Calculate the injection source actually adds to total concentration
-        C_inject = source*self.dt/(np.pi*(self.Rstar*self.R_melt)**2.)/const.rhoe
+        C_inject = source*self.dt/(np.pi*(self.Rstar*self.R_melt)**2.)
 
         # Hard set on concentration (assume that it mixes quickly)
         if 'solve_sol_mol' in self.flags:
+            self.C.vector()[:] += C_inject
             self.u0_c.vector()[:] += C_inject
         else:
             self.C += C_inject
@@ -324,7 +344,7 @@ class cylindrical_stefan():
 
         # Hard set on solution temperature (assume that the mixing energy spreads evenly)
         if 'solve_sol_temp' in self.flags:
-            self.u0_s.vector()[:] += dolfin.project(phi_dT,self.sol_V).vector()[:]
+            self.u0_s.vector()[:] += phi_dT#dolfin.project(phi_dT,self.sol_V).vector()[:]
         else:
             self.Tf = Tf_depression(self.C)/abs(self.T_inf)
             # Bump the last freezing temperature up
@@ -348,7 +368,6 @@ class cylindrical_stefan():
             dRdt -= (self.ks_wall/const.ki)*dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_s.dx(0),self.sol_V).vector()[self.sol_idx_wall]
         else:
             # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
-            # TODO: unit check here
             dRdt += np.sqrt(((self.rhos_wall*self.cs_wall*(self.Tf_last-self.Tf)*self.Rstar**2.)/(const.rhow*const.L))+self.Rstar**2.)-self.Rstar
         self.dR = dRdt*self.dt
 
@@ -417,7 +436,7 @@ class cylindrical_stefan():
             self.Tf_result = [Tf_depression(np.array(self.u0_c.vector()[:]))]
         for i,t in enumerate(self.ts[1:]):
             if verbose:
-                print(round(t*self.t0/60.),end='min , ')
+                print(round(t*self.t0/60.),end=' min, ')
 
             # --- Ethanol Injection --- #
             self.injection_energy_balance(self.source[i+1])
