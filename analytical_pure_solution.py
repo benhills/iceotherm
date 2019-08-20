@@ -205,7 +205,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     qdot = Q_sol*(Tf-T_inf)*const.ki/(r0**2.)
     t0 = 0.
     tf = 10.*r0**2./(const.ki/(const.rhoi*const.ci))
-    dt = tf/100.
+    dt = tf/1000.
     ts = np.arange(t0,tf,dt)
 
     # --- Define ODE --- #
@@ -213,7 +213,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     S = ode(f,jac).set_integrator('vode', method='bdf', with_jacobian=True)
     S.set_f_params(r0,qdot,Tf,T_inf,const)
     S.set_jac_params(r0,qdot,const)
-    S.set_initial_value(r0, t0)
+    S.set_initial_value(r0*0.99, t0)
 
     # --- Initial Output --- #
 
@@ -230,7 +230,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     while S.successful() and S.t < tf:
         S.integrate(S.t+dt)
         if verbose:
-            print("%s: %g %g" % (i, S.t*(const.alpha_i)/(r0**2.), S.y/r0))
+            print("%s: %g %g" % (i, S.t*(const.alphai)/(r0**2.), S.y/r0))
         R = S.y[0]
         R_out[i] = R
         T_out[i] = freezingTemperature(r0,R,rs,T_inf,qdot,Tf,const)
@@ -254,7 +254,7 @@ def jac(t,R,r0,qdot,const=const):
     Derivative of Crepeau and Siahpush eq. 9
     """
     bottom = np.log(R)-np.log(r0)
-    return qdot/(4.*const.rhoi*const.L)*(1/bottom-1./bottom**2.)
+    return qdot/(4.*const.rhoi*const.L)*(1./bottom-1./bottom**2.)
 
 def freezingTemperature(r0,R,rs,T_inf,qdot,Tf=0,const=const):
     """
