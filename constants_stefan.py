@@ -101,12 +101,12 @@ class constantsIceDiver(object):
         # others
         self.rhoe = 800                         # approximate density of ethanol at 0degC (Engineering Toolbox)
         self.mmass_e = 46.07                    # molar mass of ethanol (g/mol)
-        self.ke = 0.167                         # thermal conductivity of ethanol
+        self.ke = 0.19                         # thermal conductivity of ethanol
         self.etae = 2.5e-3                      # dynamic viscosity of ethanol (Pa s) (Engineering Toolbox)
         self.mmass_w = 18.02                      # molar mass of water
         self.etaw = 1.5e-3                      # dynamic viscosity of water (Pa s) (Engineering Toolbox)
         self.Kf = -1.99
-        self.ce = 2460.                         # heat capacity of ethanol
+        self.ce = 2175.                         # heat capacity of ethanol
         self.cw = 4212.                   # heat capacity of water
         self.kw = 0.555                         # thermal conductivity of water
         self.alphaw = self.kw/(self.rhow*self.cw)
