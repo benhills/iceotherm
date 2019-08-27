@@ -124,8 +124,12 @@ class cylindrical_stefan():
         self.dt /= self.t0
         # Define the ethanol source
         self.source_timing = self.ts[np.argmin(abs(self.ts-self.source_timing/self.t0))]
-        self.source_duration /= self.t0
-        self.source = self.source_mass_final/(self.source_duration*np.sqrt(np.pi))*np.exp(-((self.ts-self.source_timing)/self.source_duration)**2.)
+        if 'gaussian_source' in self.flags:
+            self.source_duration /= self.t0
+            self.source = self.source_mass_final/(self.source_duration*np.sqrt(np.pi))*np.exp(-((self.ts-self.source_timing)/self.source_duration)**2.)
+        else:
+            self.source = np.zeros_like(self.ts)
+            self.source[np.argmin(abs(self.ts-self.source_timing))] = self.source_mass_final/self.dt
 
         # --- Define the test and trial functions --- #
         self.u_i = dolfin.TrialFunction(self.ice_V)

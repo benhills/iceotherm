@@ -43,7 +43,10 @@ def C_MoleFrac(C,const=const):
     Xe = hold/(1.-C/rhos+hold)
     return Xe
 
-def C_pbm(C):
+def C_pbm(C,const=const):
+    """
+    Dimensional conversion from concentration to percent by mass
+    """
     rhos = C + const.rhow*(1.-C/const.rhoe)
     pbm = C/rhos
     return pbm
