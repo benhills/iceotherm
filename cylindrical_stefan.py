@@ -62,7 +62,8 @@ class cylindrical_stefan():
         self.Rstar_center = self.R_center/self.R_melt
         self.Rstar_inf = self.R_inf/self.R_melt
         self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
-        self.astar_i = const.L*const.rhoi/(const.rhoi*const.ci*abs(self.T_inf))
+        Lv = const.L*const.rhoi     # Latent heat of fusion per unit volume
+        self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))
         self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.
 
         # Dimensionless Constants
