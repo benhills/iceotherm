@@ -75,27 +75,34 @@ def molDiff(C,T,r=.22e-9,const=const):
         molecular diffusivity
     """
     # if not in K, convert
-    if T < 150:
+    if T < 200:
         T += const.Tf0
-    eta_s = etaKhattab(C,T)                     # solution viscocity (Pa s)
+    # convert to Mole Fraction
+    Xe = C_MoleFrac(C)
+    # solution viscocity (Pa s)
+    eta_s = etaKhattab(Xe,T)
+    # Molecular diffusivity
     D = const.kBoltz*T/(6.*r*np.pi*eta_s)
     return D
 
-def etaKhattab(C,T,const=const):
+def etaKhattab(Xe,T,const=const):
     """
     Aquous ethanol viscosity
     Approximated from  Khattab et al. 2012, eq. 6
     Uses the Jouyban-Acree model
     This is still for warm temperatures (~293 K)
     """
+
     # if not in K, convert
     if T < 200:
         T += const.Tf0
-    # convert to Mole Fraction
-    Xe = C_MoleFrac(C)
+    # calculate water and ethanol viscosity (Vogel Equation)
+    etaw = (1/1000.)*np.exp(-3.7188+(578.919/(-137.546+T)))
+    etae = (1/1000.)*np.exp(-7.37146+(2770.25/(74.6787+T)))
+    # Fraction water
     Xw = 1.-Xe
     # viscosity
-    eta_s = np.exp(Xw*np.log(const.etaw)+Xe*np.log(const.etae)+\
+    eta_s = np.exp(Xw*np.log(etaw)+Xe*np.log(etae)+\
             724.652*(Xw*Xe/T)+729.357*(Xw*Xe*(Xw-Xe)/T)+\
             976.050*(Xw*Xe*(Xw-Xe)**2./T))
     return eta_s
