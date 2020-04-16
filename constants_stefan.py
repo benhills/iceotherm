@@ -98,19 +98,29 @@ class constantsIceDiver(object):
         self.ci = 2097.                         # Specific Heat Capacity J kg-1 K-1
         self.alphai = self.ki/(self.rhoi*self.ci)
         self.L = 3.335e5                        # Latent Heat of Fusion J kg-1
-        # others
+        # ethanol
         self.rhoe = 800                         # approximate density of ethanol at 0degC (Engineering Toolbox)
         self.mmass_e = 46.07                    # molar mass of ethanol (g/mol)
-        self.ke = 0.19                         # thermal conductivity of ethanol
-        self.etae = 2.5e-3                      # dynamic viscosity of ethanol (Pa s) (Engineering Toolbox)
+        self.ke = 0.167                         # thermal conductivity of ethanol at 25degC (Engineerign Toolbox)
+        self.eta_e = 1.786e-3                      # dynamic viscosity of ethanol (Pa s) at 0degC (Engineering Toolbox)
+        self.ce = 2270.                         # heat capacity of ethanol at 0degC (Engineering Toolbox)
+        self.mol_diff_e = .84e-9                  # molecular diffusivity of aqueous ethanol at 25degC (Cussler (1997))
+        self.rad_e = .22-9                  # radius of ethanol molecule
+        # methanol
+        self.rhom = 810                         # approximate density of ethanol at 0degC (Engineering Toolbox)
+        self.mmass_m = 32.04                    # molar mass of ethanol (g/mol)
+        self.km = 0.203                         # thermal conductivity of ethanol at 25degC (Engineering Toolbox)
+        self.eta_m = .796e-3                      # dynamic viscosity of ethanol at 0degC (Pa s) (Engineering Toolbox)
+        self.cm = 2400.                         # heat capacity of ethanol at 0degC (Engineering Toolbox)
+        self.mol_diff_m = .84e-9                  # molecular diffusivity of aqueous ethanol at 25degC (Cussler (1997))
+        self.rad_m = .21-9                  # radius of methanol molecule
+        # others
         self.mmass_w = 18.02                      # molar mass of water
         self.etaw = 1.5e-3                      # dynamic viscosity of water (Pa s) (Engineering Toolbox)
         self.Kf = -1.99
-        self.ce = 2175.                         # heat capacity of ethanol
         self.cw = 4212.                   # heat capacity of water
         self.kw = 0.555                         # thermal conductivity of water
         self.alphaw = self.kw/(self.rhow*self.cw)
-        self.mol_diff = 1.24e-9                  # molecular diffusivity of aqueous ethanol at 25degC (Cussler (1997))
         # random
         self.tol = 1e-5                              # tolerance for numerics
 
