@@ -15,47 +15,64 @@ const = constantsIceDiver()
 
 # --- Dimensional Conversions --- #
 
-def C_pbv(C,const=const):
+def C_pbv(C,rho_solute):
     """
     Dimensional conversion from concentration to percent by volume
     """
-    pbv = C/const.rhoe
+    pbv = C/rho_solute
     return pbv
 
-def C_Molality(C,const=const):
+def C_Molality(C,rho_solute,mmass_solute,const=const):
     """
     Dimensional conversion from concentration to molality
     """
     # calculate the density of the solution
-    rhos = C + const.rhow*(1.-C/const.rhoe)
+    rhos = C + const.rhow*(1.-C/rho_solute)
     # calculate the molality of the solution (mole/kg)
-    molality = 1000.*C/(const.mmass_e*(rhos-C))
+    molality = 1000.*C/(mmass_solute*(rhos-C))
     return molality
 
-def C_MoleFrac(C,const=const):
+def C_MoleFrac(C,rho_solute,mmass_solute,const=const):
     """
     Dimensional conversion from concentration to mole fraction
     """
     # calculate the density of the solution
-    rhos = C + const.rhow*(1.-C/const.rhoe)
+    rhos = C + const.rhow*(1.-C/rho_solute)
     # calculate the mole fraction
-    hold = C*const.mmass_w/(const.mmass_e*rhos)
+    hold = C*const.mmass_w/(mmass_solute*rhos)
     Xe = hold/(1.-C/rhos+hold)
     return Xe
 
-def C_pbm(C,const=const):
+def C_pbm(C,rho_solute,const=const):
     """
     Dimensional conversion from concentration to percent by mass
     """
-    rhos = C + const.rhow*(1.-C/const.rhoe)
+    rhos = C + const.rhow*(1.-C/rho_solute)
     pbm = C/rhos
     return pbm
+
+def pbm_Molality(pbm,mmass_solute,const=const):
+    """
+    Dimensional conversion from percent by mass to molality
+    """
+    top = pbm*1000./mmass_solute
+    bottom = (1.-pbm)
+    molality = top/bottom
+    return molality
+
+def pbm_C(pbm,rho_solute,const=const):
+    """
+    Dimensional conversion from percent by mass to concentration
+    """
+    rhos = 1./((1./rho_solute)*pbm+(1./const.rhow)*(1.-pbm))
+    C = pbm*rhos
+    return C
 
 # -----------------------------------------------------------------------
 
 # --- Aqueous Ethanol Properties --- #
 
-def molDiff(C,T,r=.22e-9,const=const):
+def molDiff(T,eta_s,r=.22e-9,const=const):
     """
     Stokes-Einstein relation for molecular diffusivity
 
@@ -77,10 +94,6 @@ def molDiff(C,T,r=.22e-9,const=const):
     # if not in K, convert
     if T < 200:
         T += const.Tf0
-    # convert to Mole Fraction
-    Xe = C_MoleFrac(C)
-    # solution viscocity (Pa s)
-    eta_s = etaKhattab(Xe,T)
     # Molecular diffusivity
     D = const.kBoltz*T/(6.*r*np.pi*eta_s)
     return D
