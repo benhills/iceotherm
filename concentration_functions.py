@@ -17,14 +17,14 @@ const = constantsIceDiver()
 
 def C_pbv(C,rho_solute):
     """
-    Dimensional conversion from concentration to percent by volume
+    Dimensional conversion from concentration (kg solute/m3 solution) to percent by volume (m3 solute/m3 solution)
     """
     pbv = C/rho_solute
     return pbv
 
 def C_Molality(C,rho_solute,mmass_solute,const=const):
     """
-    Dimensional conversion from concentration to molality
+    Dimensional conversion from concentration (kg solute/m3 solution) to molality (mole solute/kg solvent)
     """
     # calculate the density of the solution
     rhos = C + const.rhow*(1.-C/rho_solute)
@@ -34,7 +34,7 @@ def C_Molality(C,rho_solute,mmass_solute,const=const):
 
 def C_MoleFrac(C,rho_solute,mmass_solute,const=const):
     """
-    Dimensional conversion from concentration to mole fraction
+    Dimensional conversion from concentration (kg solute/m3 solution) to mole fraction (mole solute/mole solution)
     """
     # calculate the density of the solution
     rhos = C + const.rhow*(1.-C/rho_solute)
@@ -45,7 +45,7 @@ def C_MoleFrac(C,rho_solute,mmass_solute,const=const):
 
 def C_pbm(C,rho_solute,const=const):
     """
-    Dimensional conversion from concentration to percent by mass
+    Dimensional conversion from concentration (kg solute/m3 solution) to percent by mass (kg solute/kg solution)
     """
     rhos = C + const.rhow*(1.-C/rho_solute)
     pbm = C/rhos
@@ -53,7 +53,7 @@ def C_pbm(C,rho_solute,const=const):
 
 def pbm_Molality(pbm,mmass_solute,const=const):
     """
-    Dimensional conversion from percent by mass to molality
+    Dimensional conversion from percent by mass (kg solute/kg solution) to molality (mole solute/kg solvent)
     """
     top = pbm*1000./mmass_solute
     bottom = (1.-pbm)
@@ -62,15 +62,13 @@ def pbm_Molality(pbm,mmass_solute,const=const):
 
 def pbm_C(pbm,rho_solute,const=const):
     """
-    Dimensional conversion from percent by mass to concentration
+    Dimensional conversion from percent by mass (kg solute/kg solution) to concentration (kg solute/m3 solution)
     """
     rhos = 1./((1./rho_solute)*pbm+(1./const.rhow)*(1.-pbm))
     C = pbm*rhos
     return C
 
 # -----------------------------------------------------------------------
-
-# --- Aqueous Ethanol Properties --- #
 
 def molDiff(T,eta_s,r=.22e-9,const=const):
     """
@@ -102,8 +100,8 @@ def etaKhattab(Xe,T,const=const):
     """
     Aquous ethanol viscosity
     Approximated from  Khattab et al. 2012, eq. 6
-    Uses the Jouyban-Acree model
-    This is still for warm temperatures (~293 K)
+    This was measured at warm temperatures (~293 K) but uses the Jouyban-Acree model
+        with the vogel equation I extend to lower temps
     """
 
     # if not in K, convert
@@ -120,24 +118,28 @@ def etaKhattab(Xe,T,const=const):
             976.050*(Xw*Xe*(Xw-Xe)**2./T))
     return eta_s
 
-def Tf_depression(C,Kf_constant=True,const=const):
+def Tf_depression(C,solvent='methanol',const=const):
     """
     Freezing point depression
+    interpolated from empirical values in Industrial Solvents Handbook
     """
-    # Get Molality
-    molality = C_Molality(C)
-    if Kf_constant:
-        Tf = molality*const.Kf
-    else:
-        # TODO: more robust check on this
+
+    if solvent=='methanol':
+        # Get percent by mass
+        PBM = C_pbm(C,const.rhom)
+        # industrial solvents handbook, percent by mass
+        Tfd = np.load('./methanol_freezingdepression_PBM.npy')
+    elif solvent=='ethanol':
+        # Get percent by mass
+        PBM = C_pbm(C,const.rhoe)
         # industrial solvents handbook, percent by mass
         Tfd = np.load('./ethanol_freezingdepression_PBM.npy')
-        # linear interpolation between points
-        Tfd_interp = interp1d(Tfd[0], Tfd[1])
-        Tf = Tfd_interp(C)
+    # linear interpolation between points
+    Tfd_interp = interp1d(Tfd[0], Tfd[1])
+    Tf = Tfd_interp(PBM)
     return Tf
 
-def Hmix(C,const=const):
+def Hmix(C,solvent='methanol',const=const):
     """
     # Enthalpy of mixing for aqueous ethanol
     Peeters and Huyskens (1993) Journal of Molecular Structure
@@ -145,6 +147,14 @@ def Hmix(C,const=const):
     # mole fraction
     Xe = C_MoleFrac(C)
     Xw = 1.-Xe
-    H = 1000.*(-10.6*Xw**6.*Xe-1.2*Xw*Xe+.1*Xw*Xe**2.)  # Enthalpy of mixing (J/mol)
+    if solvent=='methanol':
+        c61 = -5.1
+        c11 = -3.4
+        c12 = 0.5
+    elif solvent=='ethanol':
+        c61 = -10.6
+        c11 = -1.2
+        c12 = 0.1
+    H = 1000.*(c61*Xw**6.*Xe+c11*Xw*Xe+c12*Xw*Xe**2.)      # Enthalpy of mixing (J/mol); Peeters and Huyskens (1993) eq. 9
     phi = H*C/(const.mmass_e/1000.)                     # Energy density (J m-3)
     return H,phi

@@ -8,14 +8,23 @@ Created on Wed Jun 12 09:12:02 2019
 
 import numpy as np
 
-from constants_stefan import *
+from constants_stefan import constantsIceDiver
 const = constantsIceDiver()
 from concentration_functions import Tf_depression,molDiff
 from scipy.optimize import fsolve
 from scipy.special import erf,erfc,expi
 
 def diffusivityEps(Tinf,C0,const=const):
-    # get dimensionless diffusivity
+    """
+    Get dimensionless diffusivity (i.e. ratio between molecular and thermal diffusion)
+
+    Output
+    ----------
+    eps_i: float
+        solid diffusivity ratio
+    eps_s: float
+        solution diffusivity ratio
+    """
     D = molDiff(C0,Tinf)
     Lewis_i = const.ki/(const.rhoi*const.ci*D)
     eps_i = np.sqrt(1./Lewis_i)
