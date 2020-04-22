@@ -28,11 +28,11 @@ class thermal_model_2d():
         # Domain Specifications
         self.R_inf = 3.                          # Outer Domain Edge
         self.R_melt = 0.04                          # Melt-Out Radius
-        self.ymin = 0
-        self.ymax = 20
+        self.zmin = 0
+        self.zmax = 20
         self.n = 200
-        self.dt = .1
-        self.t_final = 10.
+        self.dt = .1*3600.
+        self.t_final = 10.*3600
 
         # Flags to keep operations in order
         self.flags = []
@@ -49,21 +49,17 @@ class thermal_model_2d():
         # Nondimensionalize (Humphrey and Echelmeyer, 1990)
         self.Tstar = self.T_inf/abs(self.T_inf)
         self.Rstar = self.R_melt/self.R_melt
-        self.Rstar_center = self.R_center/self.R_melt
         self.Rstar_inf = self.R_inf/self.R_melt
-        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
         Lv = const.L*const.rhoi     # Latent heat of fusion per unit volume
         self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))
         self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.
 
         # Dimensionless Constants
         self.St = const.ci*(self.Tf-self.T_inf)/const.L
-        self.Lewis = const.ki/(const.rhoi*const.ci*self.mol_diff)
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
         self.w0 = np.log(self.Rstar)
         self.wf = np.log(self.Rstar_inf)
-        self.ws = np.log(self.rs)
 
         self.flags.append('log_transform')
 
@@ -80,15 +76,16 @@ class thermal_model_2d():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def get_initial_conditions(self):
+    def get_initial_conditions(self,melt_velocity=-1./3600.):
         """
         Set the initial condition at the end of melting (melting can be solved analytically
         """
 
         # --- Initial states --- #
         # (ice temperature)
-        self.u0_i = dolfin.interpolate(dolfin.Constant(self.T_inf),self.ice_V)
-        self.velocity = dolfin.as_vector([dolfin.Constant(0.),dolfin.Constant(2.)])
+        self.u0_i = dolfin.interpolate(dolfin.Constant(self.Tstar),self.ice_V)
+        # the upward velocity is equal to negative the melt rate (the mesh is Lagrangian following the drill)
+        self.velocity = dolfin.Expression('melt',melt=melt_velocity*self.t0,degree=1)
 
         # --- Time Array --- #
         # Now that we have the melt-out time, we can define the time array
@@ -102,7 +99,7 @@ class thermal_model_2d():
 
         self.flags.append('get_ic')
 
-    def get_boundary_conditions(mod):
+    def get_boundary_conditions(mod,no_bottom_bc=False):
         """
         Define Boundary Conditions
         """
@@ -121,44 +118,41 @@ class thermal_model_2d():
                 return on_boundary and x[1] < mod.zmin + const.tol
 
         # Set the Dirichlet Boundary condition at
-        mod.bc_iWall = dolfin.DirichletBC(mod.ice_V, mod.Tf, mod.iWall())
-        mod.bc_Inf = dolfin.DirichletBC(mod.ice_V, mod.Tstar, mod.Inf())
-        mod.bc_Bottom = dolfin.DirichletBC(mod.ice_V, mod.Tstar, mod.Bottom())
-        mod.bcs = [mod.bc_iWall,mod.bc_Inf,mod.bc_Bottom]
+        mod.bc_iWall = dolfin.DirichletBC(mod.ice_V, mod.Tf, iWall())
+        mod.bc_Inf = dolfin.DirichletBC(mod.ice_V, mod.Tstar, Inf())
+        mod.bc_Bottom = dolfin.DirichletBC(mod.ice_V, mod.Tstar, Bottom())
+        if no_bottom_bc:
+            mod.bcs = [mod.bc_iWall,mod.bc_Inf]
+        else:
+            mod.bcs = [mod.bc_iWall,mod.bc_Inf,mod.bc_Bottom]
 
         mod.flags.append('get_bc')
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def run(self,xs_out,z_out,verbose=False,initialize_array=True):
+    def run(self,ts_out,ws_out,z_out,verbose=False,initialize_array=True):
         """
         Iterate the model through the given time array.
         """
 
         # Set up the variational form
         alphalog_i = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',degree=1,astar=self.astar_i),self.ice_V)
-        F_1 = (self.u_i-self.u0_i)*self.v_i*dolfin.dx + \
+
+        F_i = (self.u_i-self.u0_i)*self.v_i*dolfin.dx + \
                self.dt*dolfin.inner(dolfin.grad(self.u_i), dolfin.grad(alphalog_i*self.v_i))*dolfin.dx - \
                self.dt*dolfin.inner(self.velocity,self.u_i.dx(1))*self.v_i*dolfin.dx
-        F = dolfin.action(F_1,self.T_i)
-        # Compute Jacobian of F
-        J = dolfin.derivative(F, self.T_i, self.u_i)
-        # Set up the non-linear problem
-        problem = dolfin.NonlinearVariationalProblem(F, self.T_i, self.bcs, J=J)
-        # Set up the non-linear solver
-        solver = dolfin.NonlinearVariationalSolver(problem)
-        dolfin.info(solver.parameters, True)
+        a_i = dolfin.lhs(F_i)
+        L_i = dolfin.rhs(F_i)
 
+        self.T_ice_result=np.empty((0,len(ws_out)))
         if initialize_array:
-            self.T_ice_result = np.array([[self.u0_i(xi,z_out) for xi in xs_out]]*abs(self.T_inf))
+            self.T_ice_result = np.array([[self.u0_i(wi,z_out) for wi in ws_out]])*abs(self.T_inf)
         for t in self.ts:
             if verbose:
                 print(round(t*self.t0/60.),end=' min, ')
-            (iter, converged) = solver.solve()
+            dolfin.solve(a_i==L_i,self.T_i,self.bcs)
             self.u0_i.assign(self.T_i)
-            if t%1==0:
-                self.T_ice_result = np.append(self.T_ice_result,[[self.T_i(xi,z_out) for xi in xs_out]],axis=0)
-            # --- Export --- #
-            if t in self.save_times:
-                self.T_ice_result = np.append(self.T_ice_result,[self.u0_i.vector()[:]*abs(self.T_inf)],axis=0)
+            if t in ts_out:
+                self.T_ice_result = np.append(self.T_ice_result,np.array([[self.T_i(wi,z_out) for wi in ws_out]])*abs(self.T_inf),axis=0)
+
 
