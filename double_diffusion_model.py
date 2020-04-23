@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul 29 13:39:42 2019
-
-@author: benhills
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+April 22, 2020
 """
 
 import numpy as np
@@ -13,7 +15,29 @@ from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin
 
-class cylindrical_stefan():
+class double_diffusion_model():
+    """
+    This model is still in development.
+    It has issues with numerical stability.
+
+    This is a 1-dimensional thermal model for borehole evolution.
+    The hole melts and freezes according to the Stefan condition.
+    As opposed to instantaneous_mixing_model, in which the antifreeze
+    concentration is always uniform throughout the solution, this model
+    tries to diagnose slush formation more directly by directly modeling
+    both thermal and molecular diffusion within the solution. Locations
+    where the solution temperature drops below the liquidus line are
+    what Worster (2000) calls 'constitutional supercooling' (i.e. slush).
+
+    The problem is solved in cylindrical coordinates with a logarithmic transform,
+    following Humphrey and Echelmeyer (1990).
+
+    The finite element mesh is over the domain of ice, from the borehole wall out
+    to some distance where the temperature can safely be assumed constant.
+    The mesh stretches (shrinks) to maintain its coverage of the ice domain as the
+    borehole wall freezes (melts).
+
+    """
     def __init__(self,const=const):
         """
         Initial Variables
