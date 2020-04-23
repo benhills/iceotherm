@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Created on Sat Aug  6 11:31:28 2016
-
-@author: ben
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+April 22, 2020
 """
 
 import numpy as np
@@ -16,6 +18,18 @@ dolfin.parameters['allow_extrapolation'] = True
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
 class thermal_model_2d():
+    """
+    This is a 2-dimensional model for heat transfer in cylindrical coordinates.
+    The purpose of the model is to test whether we can justify a reduction to
+    one-dimension for other model runs.
+
+    The problem is solved in cylindrical coordinates with a logarithmic transform,
+    following Humphrey and Echelmeyer (1990).
+    An upward velocity is imposed to simulate the downward motion of the drill
+    through ice. That is, the mesh is in a Lagrangian framework and cold ice moves
+    upward past it.
+    """
+
     def __init__(self,const=const):
         """
         Initial Variables
@@ -29,7 +43,7 @@ class thermal_model_2d():
         self.R_inf = 3.                          # Outer Domain Edge
         self.R_melt = 0.04                          # Melt-Out Radius
         self.zmin = 0
-        self.zmax = 20
+        self.zmax = 40
         self.n = 200
         self.dt = .1*3600.
         self.t_final = 10.*3600
@@ -154,5 +168,3 @@ class thermal_model_2d():
             self.u0_i.assign(self.T_i)
             if t in ts_out:
                 self.T_ice_result = np.append(self.T_ice_result,np.array([[self.T_i(wi,z_out) for wi in ws_out]])*abs(self.T_inf),axis=0)
-
-

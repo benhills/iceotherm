@@ -8,7 +8,7 @@ Created on Wed Jun 12 09:12:02 2019
 
 import numpy as np
 
-from constants_stefan import constantsIceDiver
+from constants import constantsIceDiver
 const = constantsIceDiver()
 from concentration_functions import Tf_depression,molDiff
 from scipy.optimize import fsolve

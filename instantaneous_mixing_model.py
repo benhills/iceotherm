@@ -1,19 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul 29 13:39:42 2019
-
-@author: benhills
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+April 22, 2020
 """
 
 import numpy as np
 from analytical_pure_solution import analyticalMelt
-from constants_stefan import constantsIceDiver
+from constants import constantsIceDiver
 from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin
 
-class cylindrical_stefan():
+class instantaneous_mixing_model():
+    """
+    This is a 1-dimensional thermal model for borehole evolution.
+    The hole melts and freezes according to the Stefan condition.
+    Antifreeze added to the hole is instantaneously mixed and the solution
+    temperature always matches the freezing temperature at that concentration.
+
+    The problem is solved in cylindrical coordinates with a logarithmic transform,
+    following Humphrey and Echelmeyer (1990).
+
+    The finite element mesh is over the domain of ice, from the borehole wall out
+    to some distance where the temperature can safely be assumed constant.
+    The mesh stretches (shrinks) to maintain its coverage of the ice domain as the
+    borehole wall freezes (melts).
+    """
     def __init__(self,const=const):
         """
         Initial Variables
@@ -22,25 +38,19 @@ class cylindrical_stefan():
         # Temperature Variables
         self.T_inf = -15.                       # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
-        self.Tf_reg = 1.0
         self.Q_wall = 0.0                       # Heat Source after Melting (W)
         self.Q_initialize = 2500.               # Heat Source for Melting (W)
-        self.Q_center = 0.0                     # line source at borehole center (W/m?? TODO)
-        self.Q_sol = 0.0
 
         # Concentration Variables
         self.source_timing = np.inf
         self.source_duration = np.inf
         self.C_init = 0.0                       # Initial Solute Concentration (before injection)
         self.source_mass_final = 1.            # Total Injection Mass
-        self.mol_diff = 0.84e-9
 
         # Domain Specifications
-        self.R_center = 0.001                     # Innner Domain Edge
         self.R_inf = 1.                          # Outer Domain Edge
         self.R_melt = 0.04                          # Melt-Out Radius
         self.n = 100
-        self.rs = np.linspace(self.R_center,self.R_inf,self.n)
         self.dt = 10.
         self.t_final = 2.*3600.
 
@@ -59,7 +69,6 @@ class cylindrical_stefan():
         # Nondimensionalize (Humphrey and Echelmeyer, 1990)
         self.Tstar = self.T_inf/abs(self.T_inf)
         self.Rstar = self.R_melt/self.R_melt
-        self.Rstar_center = self.R_center/self.R_melt
         self.Rstar_inf = self.R_inf/self.R_melt
         self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
         Lv = const.L*const.rhoi     # Latent heat of fusion per unit volume
@@ -68,13 +77,10 @@ class cylindrical_stefan():
 
         # Dimensionless Constants
         self.St = const.ci*(self.Tf-self.T_inf)/const.L
-        self.Lewis = const.ki/(const.rhoi*const.ci*self.mol_diff)
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
         self.w0 = np.log(self.Rstar)
         self.wf = np.log(self.Rstar_inf)
-        self.w_center = np.log(self.Rstar_center)
-        self.ws = np.log(self.rs)
 
         self.flags.append('log_transform')
 
@@ -93,9 +99,9 @@ class cylindrical_stefan():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def get_initial_conditions(self):
+    def get_initial_conditions(self,rho_solute=const.rhom):
         """
-        Set the initial condition at the end of melting (melting can be solved analytically
+        Set the initial condition at the end of melting (melting can be solved analytically)
         """
 
         # --- Initial states --- #
@@ -108,7 +114,7 @@ class cylindrical_stefan():
         # Now that we have the melt-out time, we can define the time array
         self.ts = np.arange(self.t_melt,self.t_final+self.dt,self.dt)/self.t0
         self.dt /= self.t0
-        # Define the ethanol source
+        # Define the antifreeze source
         self.source_timing = self.ts[np.argmin(abs(self.ts-self.source_timing/self.t0))]
         if 'gaussian_source' in self.flags:
             self.source_duration /= self.t0
@@ -124,9 +130,9 @@ class cylindrical_stefan():
         self.C = self.C_init
         self.Tf_wall = Tf_depression(self.C)
         # Get the updated solution properties
-        self.rhos = self.C + const.rhow*(1.-self.C/const.rhoe)
-        self.cs = (self.C/const.rhoe)*const.ce+(1.-(self.C/const.rhoe))*const.cw
-        self.ks = (self.C/const.rhoe)*const.ke+(1.-(self.C/const.rhoe))*const.kw
+        self.rhos = self.C + const.rhow*(1.-self.C/rho_solute)
+        self.cs = (self.C/rho_solute)*const.ce+(1.-(self.C/rho_solute))*const.cw
+        self.ks = (self.C/rho_solute)*const.ke+(1.-(self.C/rho_solute))*const.kw
         self.rhos_wall,self.cs_wall,self.ks_wall = self.rhos,self.cs,self.ks
 
         self.flags.append('get_ic')
@@ -153,68 +159,6 @@ class cylindrical_stefan():
 
         mod.flags.append('get_bc')
 
-
-    def initiate_solution_diffusion(mod):
-
-        # --- Get new domain --- #
-        mod.sol_mesh = dolfin.IntervalMesh(mod.n,mod.Rstar_center,mod.Rstar)
-        mod.sol_V = dolfin.FunctionSpace(mod.sol_mesh,'CG',1)
-        mod.sol_mesh.coordinates()[:] = np.log(mod.sol_mesh.coordinates())
-        mod.sol_coords = mod.sol_V.tabulate_dof_coordinates().copy()
-        mod.sol_idx_wall = np.argmax(mod.sol_coords)
-
-        # --- Time Array --- #
-        # Now that we have the melt-out time, we can define the time array
-        mod.ts = np.arange(mod.t_init,mod.t_final+mod.dt,mod.dt)/mod.t0
-        mod.dt /= mod.t0
-        # Define the ethanol source
-        mod.source_timing = mod.source_timing/mod.t0
-        mod.source_duration /= mod.t0
-        mod.source = mod.source_mass_final/(mod.source_duration*np.sqrt(np.pi))*np.exp(-((mod.ts-mod.source_timing)/mod.source_duration)**2.)
-
-        # --- Set Initial Conditions --- #
-        # (solution temperature),
-        mod.u0_s = dolfin.Function(mod.sol_V)
-        mod.u0_s.vector()[:] = mod.Tf_wall
-        # (solution concentration),
-        mod.u0_c = dolfin.project(dolfin.Constant(mod.C),mod.sol_V)
-
-        # --- Set up the variational Problem --- #
-        mod.u_s = dolfin.TrialFunction(mod.sol_V)
-        mod.v_s = dolfin.TestFunction(mod.sol_V)
-        mod.T_s = dolfin.Function(mod.sol_V)
-        mod.C = dolfin.project(dolfin.Constant(mod.C),mod.sol_V)
-        mod.Tf = Tf_depression(mod.C)/abs(mod.T_inf)
-        mod.Tf_wall = dolfin.project(mod.Tf,mod.sol_V).vector()[mod.sol_idx_wall]
-
-        # --- Get the solution properties --- #
-        mod.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',degree=1,C=mod.C,rhow=const.rhow,rhoe=const.rhoe),mod.sol_V)
-        mod.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',degree=1,C=mod.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),mod.sol_V)
-        mod.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',degree=1,C=mod.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),mod.sol_V)
-        mod.rhos_wall = mod.rhos.vector()[mod.sol_idx_wall]
-        mod.cs_wall = mod.cs.vector()[mod.sol_idx_wall]
-        mod.ks_wall = mod.ks.vector()[mod.sol_idx_wall]
-
-        # --- Boundary Conditions --- #
-        # Liquid boundary condition at hole wall (same temperature as ice)
-        class sWall(dolfin.SubDomain):
-            def inside(self, x, on_boundary):
-                return on_boundary and x[0] > mod.sol_coords[mod.sol_idx_wall] - const.tol
-        # center flux
-        class center(dolfin.SubDomain):
-            def inside(self, x, on_boundary):
-                return on_boundary and x[0] < mod.w_center + const.tol
-
-        # Initialize boundary classes
-        mod.sWall = sWall()
-        mod.center = center()
-        # This will be used in the boundary condition for mass diffusion
-        mod.boundaries = dolfin.MeshFunction("size_t", mod.sol_mesh, 0) # this index 0 is an alternative to the command boundaries.set_all(0)
-        mod.sWall.mark(mod.boundaries, 1)
-        mod.center.mark(mod.boundaries, 2)
-        mod.sds = dolfin.Measure("ds")(subdomain_data=mod.boundaries)
-
-
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
     def update_boundary_conditions(self):
@@ -229,10 +173,9 @@ class cylindrical_stefan():
         # Reset ice boundary condition
         self.bc_iWall = dolfin.DirichletBC(self.ice_V, self.Tf_wall, self.iWall)
 
-    def solve_molecular(self):
+    def solve_molecular(self,rho_solute=const.rhom):
         """
-        Solve the molecular diffusion problem
-        if 'solve_sol_mol' is not in the flags list this will be an instantaneous mixing problem.
+        Update the solution concentration depending on how far the hole wall moved.
         """
         # Instantaneous Mixing
         # Recalculate the solution concentration after wall moves
@@ -241,9 +184,9 @@ class cylindrical_stefan():
         self.Tf_last = self.Tf
         self.Tf = Tf_depression(self.C)
         # Get the updated solution properties
-        self.rhos = self.C + const.rhow*(1.-self.C/const.rhoe)
-        self.cs = (self.C/const.rhoe)*const.ce+(1.-(self.C/const.rhoe))*const.cw
-        self.ks = (self.C/const.rhoe)*const.ke+(1.-(self.C/const.rhoe))*const.kw
+        self.rhos = self.C + const.rhow*(1.-self.C/rho_solute)
+        self.cs = (self.C/rho_solute)*const.ce+(1.-(self.C/rho_solute))*const.cw
+        self.ks = (self.C/rho_solute)*const.ke+(1.-(self.C/rho_solute))*const.kw
         self.rhos_wall,self.cs_wall,self.ks_wall = self.rhos,self.cs,self.ks
 
     def solve_thermal(self):
@@ -263,7 +206,7 @@ class cylindrical_stefan():
         # Update previous profile to current
         self.u0_i.assign(self.T_i)
 
-    def injection_energy_balance(self,source):
+    def injection_energy_balance(self,source,solute='methanol'):
         """
         At the time of injection assume that melting happens all at once
         """
@@ -275,8 +218,8 @@ class cylindrical_stefan():
 
         # enthalpy of mixing, always exothermic so gives off energy (J m-3)
         # put this added energy toward uniformly warming the solution
-        H,phi = Hmix(C_inject)
-        #phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)
+        H,phi = Hmix(C_inject,solute=solute)
+        #phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)  TODO: which is correct?
         phi_dT = -phi/(const.rhow*const.cw)/abs(self.T_inf)
 
         # Hard set on solution temperature (assume that the mixing energy spreads evenly)
@@ -322,13 +265,17 @@ class cylindrical_stefan():
         self.ice_mesh.bounding_box_tree().build(self.ice_mesh)
         self.ice_coords = self.ice_V.tabulate_dof_coordinates().copy()
 
-    # ----------------------------------------------------------------------------------------------------------------------------------------
     def conservation(self,const=const):
+        """
+        For checking that the model conserves energy
+        """
         x_exp = dolfin.Expression('pow(exp(x[0]),2)',degree=1)
         self.EnCon = dolfin.assemble(self.cs*self.rhos*x_exp*self.u0_s*dolfin.dx)+\
                         const.ci*const.rhoi*dolfin.assemble(x_exp*self.u0_i*dolfin.dx)
-        self.MassCon = dolfin.assemble(x_exp*self.u0_c*dolfin.dx)
         return
+
+    # ----------------------------------------------------------------------------------------------------------------------------------------
+
 
     def run(self,verbose=False,initialize_array=True):
         """

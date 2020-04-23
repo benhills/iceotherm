@@ -7,7 +7,7 @@ Created on Wed Jun 12 08:58:51 2019
 """
 
 import numpy as np
-from constants_stefan import constantsIceDiver
+from constants import constantsIceDiver
 const = constantsIceDiver()
 
 # -------------------------------------------------------------------------------------------------------------------------------

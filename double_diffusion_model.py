@@ -8,7 +8,7 @@ Created on Mon Jul 29 13:39:42 2019
 
 import numpy as np
 from analytical_pure_solution import analyticalMelt
-from constants_stefan import constantsIceDiver
+from constants import constantsIceDiver
 from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin

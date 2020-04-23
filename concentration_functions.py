@@ -8,7 +8,7 @@ Created on Mon Jul 29 13:39:42 2019
 
 import numpy as np
 from scipy.interpolate import interp1d
-from constants_stefan import constantsIceDiver
+from constants import constantsIceDiver
 const = constantsIceDiver()
 
 # -----------------------------------------------------------------------
@@ -118,18 +118,18 @@ def etaKhattab(Xe,T,const=const):
             976.050*(Xw*Xe*(Xw-Xe)**2./T))
     return eta_s
 
-def Tf_depression(C,solvent='methanol',const=const):
+def Tf_depression(C,solute='methanol',const=const):
     """
     Freezing point depression
     interpolated from empirical values in Industrial Solvents Handbook
     """
 
-    if solvent=='methanol':
+    if solute=='methanol':
         # Get percent by mass
         PBM = C_pbm(C,const.rhom)
         # industrial solvents handbook, percent by mass
         Tfd = np.load('./methanol_freezingdepression_PBM.npy')
-    elif solvent=='ethanol':
+    elif solute=='ethanol':
         # Get percent by mass
         PBM = C_pbm(C,const.rhoe)
         # industrial solvents handbook, percent by mass
@@ -139,19 +139,24 @@ def Tf_depression(C,solvent='methanol',const=const):
     Tf = Tfd_interp(PBM)
     return Tf
 
-def Hmix(C,solvent='methanol',const=const):
+def Hmix(C,solute='methanol',const=const):
     """
     # Enthalpy of mixing for aqueous ethanol
     Peeters and Huyskens (1993) Journal of Molecular Structure
     """
-    # mole fraction
-    Xe = C_MoleFrac(C)
-    Xw = 1.-Xe
-    if solvent=='methanol':
+    if solute=='methanol':
+        # mole fraction
+        Xe = C_MoleFrac(C,const.rhom,const.mmass_m)
+        Xw = 1.-Xe
+        # empirical equation constants
         c61 = -5.1
         c11 = -3.4
         c12 = 0.5
-    elif solvent=='ethanol':
+    elif solute=='ethanol':
+        # mole fraction
+        Xe = C_MoleFrac(C,const.rhoe,const.mmass_e)
+        Xw = 1.-Xe
+        # empirical equation constants
         c61 = -10.6
         c11 = -1.2
         c12 = 0.1
