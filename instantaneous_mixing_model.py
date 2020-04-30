@@ -118,7 +118,7 @@ class instantaneous_mixing_model():
         self.source_timing = self.ts[np.argmin(abs(self.ts-self.source_timing/self.t0))]
         if 'gaussian_source' in self.flags:
             self.source_duration /= self.t0
-            self.source = self.source_mass_final/(self.source_duration*np.sqrt(np.pi))*np.exp(-((self.ts-self.source_timing)/self.source_duration)**2.)
+            self.source = self.source_mass_final/(self.source_duration*np.sqrt(2.*np.pi))*np.exp(-.5*((self.ts-self.source_timing)/self.source_duration)**2.)
         else:
             self.source = np.zeros_like(self.ts)
             self.source[np.argmin(abs(self.ts-self.source_timing))] = self.source_mass_final/self.dt
