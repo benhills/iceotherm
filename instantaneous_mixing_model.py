@@ -15,6 +15,8 @@ from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin
 
+# --------------------------------------------------------------------------------------------
+
 class instantaneous_mixing_model():
     """
     This is a 1-dimensional thermal model for borehole evolution.
@@ -30,29 +32,30 @@ class instantaneous_mixing_model():
     The mesh stretches (shrinks) to maintain its coverage of the ice domain as the
     borehole wall freezes (melts).
     """
+
     def __init__(self,const=const):
         """
         Initial Variables
         """
 
         # Temperature Variables
-        self.T_inf = -15.                       # Far Field Temperature
+        self.T_inf = -20.                       # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
         self.Q_wall = 0.0                       # Heat Source after Melting (W)
         self.Q_initialize = 2500.               # Heat Source for Melting (W)
 
         # Concentration Variables
-        self.source_timing = np.inf
-        self.source_duration = np.inf
-        self.C_init = 0.0                       # Initial Solute Concentration (before injection)
-        self.source_mass_final = 1.            # Total Injection Mass
+        self.source_timing = np.inf             # Time at which antifreeze is added to the solution
+        self.source_duration = np.inf           # Half-width of the gaussian source
+        self.C_init = 0.0                       # Initial Solute Concentration (before injection) (kg m-3)
+        self.source_mass_final = 1.             # Total Injection Mass (kg)
 
         # Domain Specifications
-        self.R_inf = 1.                          # Outer Domain Edge
-        self.R_melt = 0.04                          # Melt-Out Radius
-        self.n = 100
-        self.dt = 10.
-        self.t_final = 2.*3600.
+        self.R_inf = 1.                         # Outer Domain Edge (m)
+        self.R_melt = 0.04                      # Melt-Out Radius (m)
+        self.n = 100                            # Mesh resolution
+        self.dt = 10.                           # Time step (s)
+        self.t_final = 2.*3600.                 # End simulation time (s)
 
         # Flags to keep operations in order
         self.flags = []
@@ -67,20 +70,20 @@ class instantaneous_mixing_model():
         """
 
         # Nondimensionalize (Humphrey and Echelmeyer, 1990)
-        self.Tstar = self.T_inf/abs(self.T_inf)
-        self.Rstar = self.R_melt/self.R_melt
-        self.Rstar_inf = self.R_inf/self.R_melt
-        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
-        Lv = const.L*const.rhoi     # Latent heat of fusion per unit volume
-        self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))
-        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.
+        self.Tstar = self.T_inf/abs(self.T_inf)                                 # Dimensionless temperature
+        self.Rstar = self.R_melt/self.R_melt                                    # Dimensionless melt-out radius
+        self.Rstar_inf = self.R_inf/self.R_melt                                 # Dimensionless outer domain edge
+        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))            # Dimensionless heat source for melting
+        Lv = const.L*const.rhoi                                                 # Latent heat of fusion per unit volume
+        self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))                 # Thermal diffusivity of ice
+        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.     # Characteristic time (~freeze time)
 
         # Dimensionless Constants
-        self.St = const.ci*(self.Tf-self.T_inf)/const.L
+        self.St = const.ci*(self.Tf-self.T_inf)/const.L                         # Stefan number
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
-        self.w0 = np.log(self.Rstar)
-        self.wf = np.log(self.Rstar_inf)
+        self.w0 = np.log(self.Rstar)                                            # Log dimensionless melt-out radius
+        self.wf = np.log(self.Rstar_inf)                                        # Log dimensionless outer domain edge
 
         self.flags.append('log_transform')
 
@@ -105,7 +108,7 @@ class instantaneous_mixing_model():
         """
 
         # --- Initial states --- #
-        # (ice temperature)
+        # ice temperature
         self.u0_i = dolfin.Function(self.ice_V)
         T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.ice_coords[:,0])*self.R_melt,self.T_inf,self.Q_initialize,R_target=self.R_melt)
         self.u0_i.vector()[:] = T/abs(self.T_inf)
@@ -163,11 +166,10 @@ class instantaneous_mixing_model():
 
     def update_boundary_conditions(self):
         """
-        Update the boundary conditions for new wall location and new wall temperature.
+        Update the thermal boundary conditions for new wall location based on the current concentration.
         """
 
-        # Update the thermal boundary condition at the wall based on the current concentration
-        # update the melting temperature
+        # Update the melting temperature
         self.Tf = Tf_depression(self.C)/abs(self.T_inf)
         self.Tf_wall = self.Tf
         # Reset ice boundary condition
@@ -177,7 +179,7 @@ class instantaneous_mixing_model():
         """
         Update the solution concentration depending on how far the hole wall moved.
         """
-        # Instantaneous Mixing
+
         # Recalculate the solution concentration after wall moves
         self.C *= (self.Rstar/np.exp(self.ice_coords[self.ice_idx_wall,0]))**2.
         # Recalculate the freezing temperature
@@ -192,10 +194,9 @@ class instantaneous_mixing_model():
     def solve_thermal(self):
         """
         Solve the thermal diffusion problem.
-        Both ice and solution.
         """
 
-        ### Solve heat equation
+        # thermal diffusivity in log coordinates
         alphalog_i = dolfin.project(dolfin.Expression('astar*exp(-2.*x[0])',degree=1,astar=self.astar_i),self.ice_V)
         # Set up the variational form for the current mesh location
         F_i = (self.u_i-self.u0_i)*self.v_i*dolfin.dx + self.dt*dolfin.inner(dolfin.grad(self.u_i), dolfin.grad(alphalog_i*self.v_i))*dolfin.dx
@@ -208,7 +209,7 @@ class instantaneous_mixing_model():
 
     def injection_energy_balance(self,source,solute='methanol'):
         """
-        At the time of injection assume that melting happens all at once
+        Update the concentration and temperature at the time of injection.
         """
 
         # Calculate the injection source actually adds to total concentration
@@ -217,10 +218,9 @@ class instantaneous_mixing_model():
         self.C += C_inject
 
         # enthalpy of mixing, always exothermic so gives off energy (J m-3)
-        # put this added energy toward uniformly warming the solution
         H,phi = Hmix(C_inject,solute=solute)
-        #phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)  TODO: which is correct?
-        phi_dT = -phi/(const.rhow*const.cw)/abs(self.T_inf)
+        # put this added energy toward uniformly warming the solution
+        phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)
 
         # Hard set on solution temperature (assume that the mixing energy spreads evenly)
         self.Tf = Tf_depression(self.C)/abs(self.T_inf)
@@ -230,14 +230,13 @@ class instantaneous_mixing_model():
 
     def move_wall(self,const=const):
         """
-        Melting/Freezing at the hole wall
+        Calculate the amount of melting/freezing at the hole wall
         This is the Stefan condition.
         """
 
         # --- Calculate Distance Wall Moves --- #
 
-        # Melting/freezing at the hole wall from prescribed flux and temperature gradient
-        # Humphrey and Echelmeyer (1990) eq. 13
+        # Melting/freezing at the hole wall from prescribed flux and temperature gradient, Humphrey and Echelmeyer (1990) eq. 13
         dRdt = dolfin.project(dolfin.Expression('exp(-x[0])',degree=1)*self.u0_i.dx(0),self.ice_V).vector()[self.ice_idx_wall] + \
                     self.Qstar/self.Rstar
         # calculate sensible heat contribution toward wall melting associated with change in the freezing temp
@@ -250,7 +249,7 @@ class instantaneous_mixing_model():
             self.flags.append('Frozen')
             return
 
-        # --- Move the Mesh --- ###
+        # --- Move the Mesh --- #
 
         # stretch mesh rather than uniform displacement
         dRsi = self.dR/(self.Rstar_inf-self.Rstar)*(self.Rstar_inf-np.exp(self.ice_coords[:,0]))
@@ -260,6 +259,7 @@ class instantaneous_mixing_model():
         u0_i_hold[self.ice_idx_extrapolate] = np.array([self.u0_i(xi) for xi in np.log(np.exp(self.ice_coords[self.ice_idx_extrapolate,0])+dRsi[self.ice_idx_extrapolate])])
         u0_i_hold[~self.ice_idx_extrapolate] = self.Tf_wall
         self.u0_i.vector()[:] = u0_i_hold[:]
+
         # advect the mesh according to the movement of the hole wall
         dolfin.ALE.move(self.ice_mesh,dolfin.Expression('std::log(exp(x[0])+dRsi*(Rstar_inf-exp(x[0])))-x[0]',degree=1,dRsi=self.dR/(self.Rstar_inf-self.Rstar),Rstar_inf=self.Rstar_inf))
         self.ice_mesh.bounding_box_tree().build(self.ice_mesh)
@@ -267,12 +267,12 @@ class instantaneous_mixing_model():
 
     def conservation(self,const=const):
         """
-        For checking that the model conserves energy
+        Integrate the temeprature profile for checking that the model conserves energy
         """
+
         x_exp = dolfin.Expression('pow(exp(x[0]),2)',degree=1)
         self.EnCon = dolfin.assemble(self.cs*self.rhos*x_exp*self.u0_s*dolfin.dx)+\
                         const.ci*const.rhoi*dolfin.assemble(x_exp*self.u0_i*dolfin.dx)
-        return
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -282,6 +282,7 @@ class instantaneous_mixing_model():
         Iterate the model through the given time array.
         """
 
+        # Initialize outputs
         if initialize_array:
             self.r_ice_result = [np.exp(self.ice_coords[:,0])*self.R_melt]
             self.T_ice_result = [np.array(self.u0_i.vector()[:]*abs(self.T_inf))]

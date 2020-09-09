@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jun 12 08:58:51 2019
-
-@author: benhills
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+June 12, 2019
 """
 
 import numpy as np

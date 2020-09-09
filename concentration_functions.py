@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul 29 13:39:42 2019
-
-@author: benhills
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+July 29, 2019
 """
 
 import numpy as np
@@ -77,17 +79,17 @@ def molDiff(T,eta_s,r=.22e-9,const=const):
     Parameters
     ----------
     C: float
-        solution concentration
+        solution concentration (kg m-3)
     T: float
-        solution temperature
+        solution temperature (K)
     r: float; optional
-        particle radius
+        particle radius (m)
     const: class; optional
 
     Output
     ---------
     D: float
-        molecular diffusivity
+        molecular diffusivity (m2 s-1)
     """
     # if not in K, convert
     if T < 200:
@@ -102,6 +104,19 @@ def etaKhattab(Xe,T,const=const):
     Approximated from  Khattab et al. 2012, eq. 6
     This was measured at warm temperatures (~293 K) but uses the Jouyban-Acree model
         with the vogel equation I extend to lower temps
+
+    Parameters
+    ----------
+    Xe: float
+        mole fraction ethanol
+    T: float
+        solution temperature (K)
+    const: class; optional
+
+    Output
+    ---------
+    eta_s: float
+        solution viscosity (Pa s)
     """
 
     # if not in K, convert
@@ -122,6 +137,19 @@ def Tf_depression(C,solute='methanol',const=const):
     """
     Freezing point depression
     interpolated from empirical values in Industrial Solvents Handbook
+
+    Parameters
+    ----------
+    C: float
+        concentration (kg m-3)
+    solute: string; default='methanol'
+        label for the solute {'ethanol';'methanol'}
+    const: class; optional
+
+    Output
+    ---------
+    Tf: float
+        freezing point depression (K)
     """
 
     if solute=='methanol':
@@ -141,8 +169,23 @@ def Tf_depression(C,solute='methanol',const=const):
 
 def Hmix(C,solute='methanol',const=const):
     """
-    # Enthalpy of mixing for aqueous ethanol
+    Enthalpy of mixing for aqueous ethanol
     Peeters and Huyskens (1993) Journal of Molecular Structure
+
+    Parameters
+    ----------
+    C: float
+        concentration (kg m-3)
+    solute: string; default='methanol'
+        label for the solute {'ethanol';'methanol'}
+    const: class; optional
+
+    Output
+    ---------
+    H: float
+        enthalpy of mixing (J mol-1)
+    phi: float
+        energy density (J m-3)
     """
     if solute=='methanol':
         # mole fraction

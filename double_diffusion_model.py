@@ -15,10 +15,13 @@ from concentration_functions import Tf_depression,Hmix
 const = constantsIceDiver()
 import dolfin
 
+# -----------------------------------------------------------------------------------------------------
+
 class double_diffusion_model():
     """
-    This model is still in development.
-    It has issues with numerical stability.
+
+    *** This model is still in development.
+    *** It has issues with numerical stability.
 
     This is a 1-dimensional thermal model for borehole evolution.
     The hole melts and freezes according to the Stefan condition.
@@ -38,35 +41,35 @@ class double_diffusion_model():
     borehole wall freezes (melts).
 
     """
+
     def __init__(self,const=const):
         """
         Initial Variables
         """
 
         # Temperature Variables
-        self.T_inf = -15.                       # Far Field Temperature
+        self.T_inf = -20.                       # Far Field Temperature
         self.Tf = 0.                            # Pure Melting Temperature
-        self.Tf_reg = 1.0
+        self.Tf_reg = 1.0                       # Regularization for thermal boundary condition at hole wall
         self.Q_wall = 0.0                       # Heat Source after Melting (W)
         self.Q_initialize = 2500.               # Heat Source for Melting (W)
-        self.Q_center = 0.0                     # line source at borehole center (W/m?? TODO)
-        self.Q_sol = 0.0
+        self.Q_center = 0.0                     # Line source at borehole center (W/m?? TODO: think about how this is implemented)
+        self.Q_sol = 0.0                        # Solution source term (W/m?? TODO: think about how this is implemented)
 
         # Concentration Variables
-        self.source_timing = np.inf
-        self.source_duration = np.inf
-        self.C_init = 0.0                       # Initial Solute Concentration (before injection)
-        self.source_mass_final = 1.            # Total Injection Mass
-        self.mol_diff = 0.84e-9
+        self.source_timing = np.inf             # Time at which antifreeze is added to the solution
+        self.source_duration = np.inf           # Half-width of the gaussian source
+        self.C_init = 0.0                       # Initial Solute Concentration (before injection) (kg m-3)
+        self.source_mass_final = 1.             # Total Injection Mass (kg)
+        self.mol_diff = 0.84e-9                 # Molecular diffusivity
 
         # Domain Specifications
-        self.R_center = 0.001                     # Innner Domain Edge
-        self.R_inf = 1.                          # Outer Domain Edge
-        self.R_melt = 0.04                          # Melt-Out Radius
-        self.n = 100
-        self.rs = np.linspace(self.R_center,self.R_inf,self.n)
-        self.dt = 10.
-        self.t_final = 2.*3600.
+        self.R_center = 0.001                   # Innner Domain Edge (m)
+        self.R_inf = 1.                         # Outer Domain Edge (m)
+        self.R_melt = 0.04                      # Melt-Out Radius (m)
+        self.n = 100                            # Mesh resolution
+        self.dt = 10.                           # Time step (s)
+        self.t_final = 2.*3600.                 # End simulation time (s)
 
         # Flags to keep operations in order
         self.flags = []
@@ -81,24 +84,23 @@ class double_diffusion_model():
         """
 
         # Nondimensionalize (Humphrey and Echelmeyer, 1990)
-        self.Tstar = self.T_inf/abs(self.T_inf)
-        self.Rstar = self.R_melt/self.R_melt
-        self.Rstar_center = self.R_center/self.R_melt
-        self.Rstar_inf = self.R_inf/self.R_melt
-        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))
-        Lv = const.L*const.rhoi     # Latent heat of fusion per unit volume
-        self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))
-        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.
+        self.Tstar = self.T_inf/abs(self.T_inf)                                 # Dimensionless temperature
+        self.Rstar = self.R_melt/self.R_melt                                    # Dimensionless melt-out radius
+        self.Rstar_center = self.R_center/self.R_melt                           # Dimensionless center radius
+        self.Rstar_inf = self.R_inf/self.R_melt                                 # Dimensionless outer domain edge
+        self.Qstar = self.Q_wall/(2.*np.pi*const.ki*abs(self.T_inf))            # Dimensionless heat source for melting
+        Lv = const.L*const.rhoi                                                 # Latent heat of fusion per unit volume
+        self.astar_i = Lv/(const.rhoi*const.ci*abs(self.T_inf))                 # Thermal diffusivity of ice
+        self.t0 = const.rhoi*const.ci/const.ki*self.astar_i*self.R_melt**2.     # Characteristic time (~freeze time)
 
         # Dimensionless Constants
-        self.St = const.ci*(self.Tf-self.T_inf)/const.L
-        self.Lewis = const.ki/(const.rhoi*const.ci*self.mol_diff)
+        self.St = const.ci*(self.Tf-self.T_inf)/const.L                         # Stefan number
+        self.Lewis = const.ki/(const.rhoi*const.ci*self.mol_diff)               # Lewis number
 
         # Tranform to a logarithmic coordinate system so that there are more points near the borehole wall.
-        self.w0 = np.log(self.Rstar)
-        self.wf = np.log(self.Rstar_inf)
-        self.w_center = np.log(self.Rstar_center)
-        self.ws = np.log(self.rs)
+        self.w0 = np.log(self.Rstar)                                            # Log dimensionless melt-out radius
+        self.wf = np.log(self.Rstar_inf)                                        # Log dimensionless outer domain edge
+        self.w_center = np.log(self.Rstar_center)                               # Log dimensionless domain center
 
         self.flags.append('log_transform')
 
@@ -217,6 +219,16 @@ class double_diffusion_model():
 
 
     def initiate_solution_diffusion(mod):
+        """
+        Before the equations can be solved for the liquid solution: initial conditions and solution properties need to be setup
+            update domain
+            time array and ethanol source timing
+            initial conditions
+            variational problem
+            solution properties
+            boundary conditions
+        To be run once after get_initial_conditions() and get_boundary_conditions()
+        """
 
         # --- Get new domain --- #
         mod.sol_mesh = dolfin.IntervalMesh(mod.n,mod.Rstar_center,mod.Rstar)
@@ -225,7 +237,7 @@ class double_diffusion_model():
         mod.sol_coords = mod.sol_V.tabulate_dof_coordinates().copy()
         mod.sol_idx_wall = np.argmax(mod.sol_coords)
 
-        # --- Time Array --- #
+        # --- Time array --- #
         # Now that we have the melt-out time, we can define the time array
         mod.ts = np.arange(mod.t_init,mod.t_final+mod.dt,mod.dt)/mod.t0
         mod.dt /= mod.t0
@@ -234,11 +246,11 @@ class double_diffusion_model():
         mod.source_duration /= mod.t0
         mod.source = mod.source_mass_final/(mod.source_duration*np.sqrt(np.pi))*np.exp(-((mod.ts-mod.source_timing)/mod.source_duration)**2.)
 
-        # --- Set Initial Conditions --- #
-        # (solution temperature),
+        # --- Set initial conditions --- #
+        # solution temperature
         mod.u0_s = dolfin.Function(mod.sol_V)
         mod.u0_s.vector()[:] = mod.Tf_wall
-        # (solution concentration),
+        # solution concentration
         mod.u0_c = dolfin.project(dolfin.Constant(mod.C),mod.sol_V)
 
         # --- Set up the variational Problem --- #
@@ -275,7 +287,6 @@ class double_diffusion_model():
         mod.sWall.mark(mod.boundaries, 1)
         mod.center.mark(mod.boundaries, 2)
         mod.sds = dolfin.Measure("ds")(subdomain_data=mod.boundaries)
-
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -386,7 +397,7 @@ class double_diffusion_model():
 
     def injection_energy_balance(self,source):
         """
-        At the time of injection assume that melting happens all at once
+        Update the concentration and temperature at the time of injection.
         """
 
         # Calculate the injection source actually adds to total concentration
@@ -407,7 +418,7 @@ class double_diffusion_model():
 
     def move_wall(self,const=const):
         """
-        Melting/Freezing at the hole wall
+        Calculate the amount of melting/freezing at the hole wall
         This is the Stefan condition.
         """
 
@@ -462,11 +473,15 @@ class double_diffusion_model():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
     def conservation(self,const=const):
+        """
+        Integrate the temeprature profile for checking that the model conserves energy
+        Integrate the concentration profile for checking that the model conserves mass
+        """
+
         x_exp = dolfin.Expression('pow(exp(x[0]),2)',degree=1)
         self.EnCon = dolfin.assemble(self.cs*self.rhos*x_exp*self.u0_s*dolfin.dx)+\
                         const.ci*const.rhoi*dolfin.assemble(x_exp*self.u0_i*dolfin.dx)
         self.MassCon = dolfin.assemble(x_exp*self.u0_c*dolfin.dx)
-        return
 
     def run(self,verbose=False,initialize_array=True):
         """

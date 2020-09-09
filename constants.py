@@ -1,9 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jul 27 17:15:22 2018
-
-@author: benhills
+Author:
+Benjamin Hills
+University of Washington
+Earth and Space Sciences
+July 29, 2019
 """
 
 class constantsIceDiver(object):
