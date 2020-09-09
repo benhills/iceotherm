@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright © 2020 bhills <benjaminhhills@gmail.com>
+# Distributed under terms of the GNU GPL3.0 license.
+
 """
 Author:
 Benjamin Hills
@@ -13,6 +17,17 @@ import numpy as np
 from constants import constantsIceDiver
 const = constantsIceDiver()
 from concentration_functions import Tf_depression,molDiff
+
+# ---------------------------------------------------------------------
+
+class constantsWorster(object):
+    def __init__(self):
+        self.m = -0.5       # Freezing depression constant (degC wt.%-1)
+        self.eps = 0.05     # Dimensionless diffusivity (Le/alpha)
+        self.Tinf = 20.     # Far-field temperature (degC)
+        self.LCp = 80.      # Latent heat over specific heat capacity (degC)
+
+const_worst = constantsWorster()
 
 # ---------------------------------------------------------------------
 
@@ -98,7 +113,7 @@ def G(lam):
 
     return G
 
-def worsterLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
+def worsterLam(lam,Tb,Tinf,C0,const=const,const_worst=const_worst,worsterCheck=False):
     """
     Optimize for lambda, Worster 4.12b
 
@@ -114,6 +129,8 @@ def worsterLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
         initial concentration in the solution that the solid is moving into
     const: class
         constants
+    const_worst: class
+        constants from Worster (2000)
     worsterCheck: bool
         either use the constants from Worster (2000)
         or get diffusivity from function diffusivityEps()
@@ -126,28 +143,32 @@ def worsterLam(lam,Tb,Tinf,C0,const=const,worsterCheck=False):
 
     if worsterCheck:
         # Get dimensionless diffusivity
-        eps_i = const.eps_i
-        eps_s = const.eps_s
+        eps_sol = const_worst.eps
+        eps_liq = const_worst.eps
+        # Freezing point depression
+        m = const_worst.Kf
     else:
         # Get dimensionless diffusivity
-        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.-F(lam))
     # Freezing point depression, Worster 4.6
-    Ti = -const.Kf*Ci
+    Ti = m*Ci
 
     # Setup the optimization
     if worsterCheck:
-        lhs = const.LCp
+        lhs = const_worst.LCp
     else:
         lhs = const.L/const.ci
-    rhs1 = (Ti-Tb)/G(eps_i*lam)
-    rhs2 = (Tinf-Ti)/F(eps_s*lam)
+    rhs1 = (Ti-Tb)/G(eps_sol*lam)
+    rhs2 = (Tinf-Ti)/F(eps_liq*lam)
 
     return lhs - rhs1 + rhs2
 
-def worsterInequality(Tb,Tinf,C0,const=const,worsterCheck=False):
+def worsterInequality(Tb,Tinf,C0,const=const,const_worst=const_worst,worsterCheck=False):
     """
     The inequality which describes the conditions under which we have
     constitutional supercooling (i.e. slush), Worster 4.15
@@ -162,6 +183,8 @@ def worsterInequality(Tb,Tinf,C0,const=const,worsterCheck=False):
         initial concentration in the solution that the solid is moving into
     const: class
         constants
+    const_worst: class
+        constants from Worster (2000)
     worsterCheck: bool
         either use the constants from Worster (2000)
         or get diffusivity from function diffusivityEps()
@@ -175,26 +198,31 @@ def worsterInequality(Tb,Tinf,C0,const=const,worsterCheck=False):
 
     if worsterCheck:
         # Get dimensionless diffusivity
-        eps_s = const.eps_s
-        eps_i = const.eps_i
+        eps_sol = const_worst.eps_sol
+        eps_liq = const_worst.eps_liq
+        # Freezing point depression
+        m = const_worst.Kf
         # Solve optimization for lambda
         lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
     else:
         # Get dimensionless diffusivity
-        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
         # Solve optimization for lambda
         lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.-F(lam))
     # Freezing point depression, Worster 4.6
-    Ti = -const.Kf*Ci
+    Ti = m*Ci
 
-    constitutional_supercooling = abs(eps_s**2.*(Tinf-Ti)/F(eps_s*lam) - const.Kf*(Ci-C0)/F(lam))
+    # Inequality for constitutional supercooling, Worster 4.15
+    constitutional_supercooling = abs(eps_liq**2.*(Tinf-Ti)/F(eps_liq*lam) - const.Kf*(Ci-C0)/F(lam))
 
     return constitutional_supercooling
 
-def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,worsterCheck=False):
+def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,const_worst=const_worst,worsterCheck=False):
     """
     Temperature profiles in the solid and solution, Worster 4.8 and 4.9
     Concentration profile in solution, Worster 4.10
@@ -213,6 +241,8 @@ def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,worsterCheck=False):
         initial concentration in the solution that the solid is moving into
     const: class
         constants
+    const_worst: class
+        constants from Worster (2000)
     worsterCheck: bool
         either use the constants from Worster (2000)
         or get diffusivity from function diffusivityEps()
@@ -227,26 +257,31 @@ def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,worsterCheck=False):
         concentration in the liquid
     """
 
-    # Get dimensionless diffusivity
     if worsterCheck:
-        eps_i = const.eps_i
-        eps_s = const.eps_s
+        # Get dimensionless diffusivity
+        eps_sol = const_worst.eps
+        eps_liq = const_worst.eps
+        # Freezing point depression
+        m = const_worst.Kf
     else:
-        eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
+        # Get dimensionless diffusivity
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.-F(lam))
     # Freezing point depression, Worster 4.6
-    Ti = -const.Kf*Ci
+    Ti = m*Ci
 
     # Temperature profile in the solid, Worster 4.8
-    Tsol = Tb + (Ti-Tb)*erf(eps_i*eta)/erf(eps_i*lam)
+    Tsol = Tb + (Ti-Tb)*erf(eps_sol*eta)/erf(eps_sol*lam)
     Tsol[eta>lam] = np.nan
     # Concentration in the liquid, Worster 4.10
     Cliq = C0 + (Ci-C0)*erfc(eta)/erfc(lam)
     Cliq[eta<lam] = np.nan
     # Temperature profile in the liquid, Worster 4.9
-    Tliq = Tinf + (Ti-Tinf)*erfc(eps_s*eta)/erfc(eps_s*lam)
+    Tliq = Tinf + (Ti-Tinf)*erfc(eps_liq*eta)/erfc(eps_liq*lam)
     Tliq[eta<lam] = np.nan
 
     return Tsol,Tliq,Cliq
