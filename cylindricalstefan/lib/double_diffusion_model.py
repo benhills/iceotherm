@@ -13,10 +13,12 @@ April 22, 2020
 """
 
 import numpy as np
-from analytical_pure_solution import analyticalMelt
-from constants import constantsIceDiver
-from concentration_functions import Tf_depression,Hmix
+
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
+from cylindricalstefan.lib.concentration_functions import Tf_depression,Hmix
+from cylindricalstefan.lib.analytical_pure_solution import analyticalMelt
+
 import dolfin
 
 # -----------------------------------------------------------------------------------------------------
@@ -129,21 +131,21 @@ class double_diffusion_model():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def get_initial_conditions(self):
+    def get_initial_conditions(self,rho_solute=const.rhom):
         """
         Set the initial condition at the end of melting (melting can be solved analytically
         """
 
         # --- Initial states --- #
-        # (ice temperature)
+        # ice temperature
         self.u0_i = dolfin.Function(self.ice_V)
         T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.ice_coords[:,0])*self.R_melt,self.T_inf,self.Q_initialize,R_target=self.R_melt)
         self.u0_i.vector()[:] = T/abs(self.T_inf)
-        # (solution temperature),
+        # solution temperature
         self.u0_s = dolfin.Function(self.sol_V)
         T,lam,self.R_melt,self.t_melt = analyticalMelt(np.exp(self.sol_coords[:,0])*self.R_melt,self.T_inf,self.Q_initialize,R_target=self.R_melt)
         self.u0_s.vector()[:] = T/abs(self.T_inf)
-        # (solution concentration),
+        # solution concentration
         self.u0_c = dolfin.interpolate(dolfin.Constant(self.C_init),self.sol_V)
 
         # --- Time Array --- #
@@ -167,13 +169,12 @@ class double_diffusion_model():
         self.v_s = dolfin.TestFunction(self.sol_V)
         self.T_s = dolfin.Function(self.sol_V)
         self.C = dolfin.Function(self.sol_V)
-        self.Tf = Tf_depression(self.C)
-        self.Tf /= abs(self.T_inf)
+        self.Tf = Tf_depression(self.C,linear=True)/abs(self.T_inf)
         self.Tf_wall = dolfin.project(self.Tf,self.sol_V).vector()[self.sol_idx_wall]
         # Get the updated solution properties
-        self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',degree=1,C=self.C,rhow=const.rhow,rhoe=const.rhoe),self.sol_V)
-        self.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',degree=1,C=self.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),self.sol_V)
-        self.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',degree=1,C=self.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),self.sol_V)
+        self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rho)',degree=1,C=self.C,rhow=const.rhow,rho=rho_solute),self.sol_V)
+        self.cs = dolfin.project(dolfin.Expression('ce*(C/rho) + cw*(1.-C/rho)',degree=1,C=self.C,cw=const.cw,ce=const.ce,rho=rho_solute),self.sol_V)
+        self.ks = dolfin.project(dolfin.Expression('ke*(C/rho) + kw*(1.-C/rho)',degree=1,C=self.C,kw=const.kw,ke=const.ke,rho=rho_solute),self.sol_V)
         self.rhos_wall = self.rhos.vector()[self.sol_idx_wall]
         self.cs_wall = self.cs.vector()[self.sol_idx_wall]
         self.ks_wall = self.ks.vector()[self.sol_idx_wall]
@@ -222,7 +223,7 @@ class double_diffusion_model():
         mod.flags.append('get_bc')
 
 
-    def initiate_solution_diffusion(mod):
+    def initiate_solution_diffusion(mod,rho_solute=const.rhom):
         """
         Before the equations can be solved for the liquid solution: initial conditions and solution properties need to be setup
             update domain
@@ -262,13 +263,13 @@ class double_diffusion_model():
         mod.v_s = dolfin.TestFunction(mod.sol_V)
         mod.T_s = dolfin.Function(mod.sol_V)
         mod.C = dolfin.project(dolfin.Constant(mod.C),mod.sol_V)
-        mod.Tf = Tf_depression(mod.C)/abs(mod.T_inf)
+        mod.Tf = Tf_depression(mod.C,linear=True)/abs(mod.T_inf)
         mod.Tf_wall = dolfin.project(mod.Tf,mod.sol_V).vector()[mod.sol_idx_wall]
 
         # --- Get the solution properties --- #
-        mod.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',degree=1,C=mod.C,rhow=const.rhow,rhoe=const.rhoe),mod.sol_V)
-        mod.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',degree=1,C=mod.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),mod.sol_V)
-        mod.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',degree=1,C=mod.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),mod.sol_V)
+        mod.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rho_solute)',degree=1,C=mod.C,rhow=const.rhow,rho_solute=rho_solute),mod.sol_V)
+        mod.cs = dolfin.project(dolfin.Expression('ce*(C/rho_solute) + cw*(1.-C/rho_solute)',degree=1,C=mod.C,cw=const.cw,ce=const.ce,rho_solute=rho_solute),mod.sol_V)
+        mod.ks = dolfin.project(dolfin.Expression('ke*(C/rho_solute) + kw*(1.-C/rho_solute)',degree=1,C=mod.C,kw=const.kw,ke=const.ke,rho_solute=rho_solute),mod.sol_V)
         mod.rhos_wall = mod.rhos.vector()[mod.sol_idx_wall]
         mod.cs_wall = mod.cs.vector()[mod.sol_idx_wall]
         mod.ks_wall = mod.ks.vector()[mod.sol_idx_wall]
@@ -300,18 +301,17 @@ class double_diffusion_model():
         """
 
         # Update the thermal boundary condition at the wall based on the current concentration
-        # update the melting temperature
         Tf_wall_last = self.Tf_wall
-        self.Tf = Tf_depression(self.C)/abs(self.T_inf)
+        self.Tf = Tf_depression(self.C,linear=True)/abs(self.T_inf)
         self.C_wall = dolfin.project(self.C,self.sol_V).vector()[self.sol_idx_wall]
-        Tf_wall_hold = Tf_depression(self.C_wall)/abs(self.T_inf)
+        Tf_wall_hold = Tf_depression(self.C_wall,linear=True)/abs(self.T_inf)
         self.Tf_wall = Tf_wall_last + (Tf_wall_hold-Tf_wall_last)*self.Tf_reg
         # Reset ice boundary condition
         self.bc_iWall = dolfin.DirichletBC(self.ice_V, self.Tf_wall, self.iWall)
         # Reset solution boundary condition
         self.bc_sWall = dolfin.DirichletBC(self.sol_V, self.Tf_wall, self.sWall)
 
-    def solve_molecular(self):
+    def solve_molecular(self,rho_solute=const.rhom):
         """
         Solve the molecular diffusion problem
         if 'solve_sol_mol' is not in the flags list this will be an instantaneous mixing problem.
@@ -338,7 +338,7 @@ class double_diffusion_model():
         J = dolfin.derivative(F_c, self.C, self.u_s)
         # handle the bounds
         lower = dolfin.project(dolfin.Constant(0.0),self.sol_V)
-        upper = dolfin.project(dolfin.Constant(const.rhoe),self.sol_V)
+        upper = dolfin.project(dolfin.Constant(rho_solute),self.sol_V)
         # set bounds and solve
         snes_solver_parameters = {"nonlinear_solver": "snes",
                                   "snes_solver": {"linear_solver": "lu",
@@ -355,14 +355,14 @@ class double_diffusion_model():
 
         # Recalculate the freezing temperature
         self.Tf_last = self.Tf
-        self.Tf = Tf_depression(self.C.vector()[self.sol_idx_wall,0])
+        self.Tf = Tf_depression(self.C.vector()[self.sol_idx_wall,0],linear=True)
         # Get the updated solution properties
-        self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rhoe)',
-            degree=1,C=self.C,rhow=const.rhow,rhoe=const.rhoe),self.sol_V)
-        self.cs = dolfin.project(dolfin.Expression('ce*(C/rhoe) + cw*(1.-C/rhoe)',
-            degree=1,C=self.C,cw=const.cw,ce=const.ce,rhoe=const.rhoe),self.sol_V)
-        self.ks = dolfin.project(dolfin.Expression('ke*(C/rhoe) + kw*(1.-C/rhoe)',
-            degree=1,C=self.C,kw=const.kw,ke=const.ke,rhoe=const.rhoe),self.sol_V)
+        self.rhos = dolfin.project(dolfin.Expression('C + rhow*(1.-C/rho_solute)',
+            degree=1,C=self.C,rhow=const.rhow,rho_solute=rho_solute),self.sol_V)
+        self.cs = dolfin.project(dolfin.Expression('ce*(C/rho_solute) + cw*(1.-C/rho_solute)',
+            degree=1,C=self.C,cw=const.cw,ce=const.ce,rho_solute=rho_solute),self.sol_V)
+        self.ks = dolfin.project(dolfin.Expression('ke*(C/rho_solute) + kw*(1.-C/rho_solute)',
+            degree=1,C=self.C,kw=const.kw,ke=const.ke,rho_solute=rho_solute),self.sol_V)
         self.rhos_wall = self.rhos.vector()[self.sol_idx_wall]
         self.cs_wall = self.cs.vector()[self.sol_idx_wall]
         self.ks_wall = self.ks.vector()[self.sol_idx_wall]
@@ -412,8 +412,8 @@ class double_diffusion_model():
         self.u0_c.vector()[:] += C_inject
 
         # enthalpy of mixing, always exothermic so gives off energy (J m-3)
-        # put this added energy toward uniformly warming the solution
         H,phi = Hmix(C_inject)
+        # put this added energy toward uniformly warming the solution
         #phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)
         phi_dT = -phi/(const.rhow*const.cw)/abs(self.T_inf)
 
@@ -497,7 +497,7 @@ class double_diffusion_model():
             self.T_ice_result = [np.array(self.u0_i.vector()[:]*abs(self.T_inf))]
             self.r_sol_result = [np.exp(self.sol_coords[:,0])*self.R_melt]
             self.T_sol_result = [np.array(self.u0_s.vector()[:]*abs(self.T_inf))]
-            self.Tf_result = [Tf_depression(np.array(self.u0_c.vector()[:]))]
+            self.Tf_result = [Tf_depression(np.array(self.u0_c.vector()[:]),linear=True)]
         for i,t in enumerate(self.ts[1:]):
             if verbose:
                 print(round(t*self.t0/60.),end=' min, ')
@@ -528,4 +528,4 @@ class double_diffusion_model():
                 self.T_ice_result = np.append(self.T_ice_result,[self.u0_i.vector()[:]*abs(self.T_inf)],axis=0)
                 self.r_sol_result = np.append(self.r_sol_result,[np.exp(self.sol_coords[:,0])*self.R_melt],axis=0)
                 self.T_sol_result = np.append(self.T_sol_result,[self.u0_s.vector()[:]*abs(self.T_inf)],axis=0)
-                self.Tf_result = np.append(self.Tf_result,[Tf_depression(self.u0_c.vector()[:])],axis=0)
+                self.Tf_result = np.append(self.Tf_result,[Tf_depression(self.u0_c.vector()[:],linear=True)],axis=0)

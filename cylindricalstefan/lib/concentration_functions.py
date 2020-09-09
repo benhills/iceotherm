@@ -139,7 +139,7 @@ def etaKhattab(Xe,T,const=const):
             976.050*(Xw*Xe*(Xw-Xe)**2./T))
     return eta_s
 
-def Tf_depression(C,solute='methanol',const=const):
+def Tf_depression(C,solute='methanol',linear=False,const=const):
     """
     Freezing point depression
     interpolated from empirical values in Industrial Solvents Handbook
@@ -150,6 +150,8 @@ def Tf_depression(C,solute='methanol',const=const):
         concentration (kg m-3)
     solute: string; default='methanol'
         label for the solute {'ethanol';'methanol'}
+    linear: bool
+        option for linear freezing point depression through a single constant
     const: class; optional
 
     Output
@@ -158,20 +160,24 @@ def Tf_depression(C,solute='methanol',const=const):
         freezing point depression (K)
     """
 
-    if solute=='methanol':
-        # Get percent by mass
-        PBM = C_pbm(C,const.rhom)
-        # industrial solvents handbook, percent by mass
-        Tfd = np.load('../../data/methanol_freezingdepression_PBM.npy')
-    elif solute=='ethanol':
-        # Get percent by mass
-        PBM = C_pbm(C,const.rhoe)
-        # industrial solvents handbook, percent by mass
-        Tfd = np.load('../../data/ethanol_freezingdepression_PBM.npy')
-    # linear interpolation between points
-    Tfd_interp = interp1d(Tfd[0], Tfd[1])
-    Tf = Tfd_interp(PBM)
-    return Tf
+    if linear:
+        Tf = const.Kf*C
+        return Tf
+    else:
+        if solute=='methanol':
+            # Get percent by mass
+            PBM = C_pbm(C,const.rhom)
+            # industrial solvents handbook, percent by mass
+            Tfd = np.load('../../data/methanol_freezingdepression_PBM.npy')
+        elif solute=='ethanol':
+            # Get percent by mass
+            PBM = C_pbm(C,const.rhoe)
+            # industrial solvents handbook, percent by mass
+            Tfd = np.load('../../data/ethanol_freezingdepression_PBM.npy')
+        # linear interpolation between points
+        Tfd_interp = interp1d(Tfd[0], Tfd[1])
+        Tf = Tfd_interp(PBM)
+        return Tf
 
 def Hmix(C,solute='methanol',const=const):
     """

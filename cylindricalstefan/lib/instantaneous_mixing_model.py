@@ -13,10 +13,12 @@ April 22, 2020
 """
 
 import numpy as np
-from analytical_pure_solution import analyticalMelt
-from constants import constantsIceDiver
-from concentration_functions import Tf_depression,Hmix
+
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
+from cylindricalstefan.lib.concentration_functions import Tf_depression,Hmix
+from cylindricalstefan.lib.analytical_pure_solution import analyticalMelt
+
 import dolfin
 
 # --------------------------------------------------------------------------------------------

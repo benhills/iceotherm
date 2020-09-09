@@ -13,10 +13,11 @@ April 22, 2020
 """
 
 import numpy as np
-from constants import constantsIceDiver
-import dolfin
+
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
 
+import dolfin
 dolfin.parameters['allow_extrapolation'] = True
 
 # ----------------------------------------------------------------------------------------------------------------------------------------

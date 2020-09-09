@@ -12,9 +12,10 @@ Earth and Space Sciences
 September 9, 2019
 """
 
+import numpy as np
 import unittest
 
-from cylindricalstefan.lib.analytical_pure_solution import *
+from cylindricalstefan.lib.analytical_pure_solution import analyticalMelt,analyticalFreeze
 from cylindricalstefan.lib.analytical_binary_solution import *
 
 class TestAnalyticalFunctions(unittest.TestCase):
@@ -73,7 +74,6 @@ class TestAnalyticalFunctions(unittest.TestCase):
         self.assertTrue(np.all(T>=T_inf))
         self.assertTrue(np.all(T<=Tf))
         self.assertTrue(np.all(np.diff(R)<0.))
-        
 
     #def test_binary_worster(self):
         
