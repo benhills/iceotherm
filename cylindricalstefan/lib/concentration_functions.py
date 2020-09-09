@@ -13,8 +13,10 @@ July 29, 2019
 """
 
 import numpy as np
+
 from scipy.interpolate import interp1d
-from constants import constantsIceDiver
+
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
 
 # -----------------------------------------------------------------------
@@ -160,12 +162,12 @@ def Tf_depression(C,solute='methanol',const=const):
         # Get percent by mass
         PBM = C_pbm(C,const.rhom)
         # industrial solvents handbook, percent by mass
-        Tfd = np.load('./methanol_freezingdepression_PBM.npy')
+        Tfd = np.load('../../data/methanol_freezingdepression_PBM.npy')
     elif solute=='ethanol':
         # Get percent by mass
         PBM = C_pbm(C,const.rhoe)
         # industrial solvents handbook, percent by mass
-        Tfd = np.load('./ethanol_freezingdepression_PBM.npy')
+        Tfd = np.load('../../data/ethanol_freezingdepression_PBM.npy')
     # linear interpolation between points
     Tfd_interp = interp1d(Tfd[0], Tfd[1])
     Tf = Tfd_interp(PBM)

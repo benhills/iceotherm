@@ -14,9 +14,9 @@ June 12, 2019
 
 import numpy as np
 
-from constants import constantsIceDiver
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
-from concentration_functions import Tf_depression,molDiff
+from cylindricalstefan.lib.concentration_functions import Tf_depression,molDiff
 
 # ---------------------------------------------------------------------
 

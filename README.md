@@ -1,4 +1,4 @@
-This repository contains a set of models to diagnose slush formation in thermally-drilled glacier boreholes (Hills et al., 2020). This work was done to aid in design of a hot-point drill, the Ice Diver, at the Applied Physics Lab, University of Washington.
+This repository contains a set of models to diagnose slush formation in thermally-drilled glacier boreholes. This work was done to aid in design of a hot-point drill, the Ice Diver, at the Applied Physics Lab, University of Washington. Please cite the associated text (Hills et al., 2020) anywhere that this repository is used.
 
 Physical Description
 ---
@@ -14,14 +14,14 @@ Some Antifreeze Properties
 ---
 
 We document the properties for commonly used antifreeze agents (ethanol and methanol) within a few scripts here. The liquidus line from the Industrial Solvents Handbook (Flick, 1998) is saved as a function of percent by mass:
-- methanol_freezingdepression_PBM.npy
-- ethanol_freezingdepression_PBM.npy
+- ./data/methanol_freezingdepression_PBM.npy
+- ./data/ethanol_freezingdepression_PBM.npy
 
 Other constants that are used in the models:
-- constants.py
+- ./cylindricalstefan/lib/constants.py
 
 Dimensional conversions used in the models:
-- concentration_functions.py
+- ./cylindricalstefan/lib/concentration_functions.py
 
 Models
 ---
@@ -30,23 +30,29 @@ The mathematical setup is a Stefan problem in cylindrical coordinates.
 1) Analytical Solutions
 
 There is an analytical solution for melting with a heat source that stays at the center of the hole (i.e. r=0) derived in Carslaw and Jaeger (1959; sec 11.6). We derive an analogous solution that better fits our case where the heat source follows the borehole wall as it moves out. While there is no true analytical solution for the freezing case, Crepeau and Siahpush derived an 'approximate' solution which we provide here as well. All three solutions are provided as functions in:
-- analytical_pure_solution.py
+- ./cylindricalstefan/lib/analytical_pure_solution.py
 
 The above functions are for the conventional Stefan problem with pure water in the borehole. The problem is significantly complicated by the addition of antifreeze into the borehole solution. Most of the theory on freezing into a binary solution was developed by Worster (2000). His theory is all in cartesian coordinates, but we provide some of the useful functions here as a reference:
-- analytical_binary_solution.py
+- ./cylindricalstefan/lib/analytical_binary_solution.py
 
 2) Instantaneous Mixing Model
 
 This is a numerical model which uses the finite element software FEniCS. This model simulates borehole evolution through melting and refreezing, including with an antifreeze solution. It assumes that the borehole solution is always mixed instantaneously, so any time that the borehole wall moves, the solution concentration and the corresponding freezing temperature are updated immediately. This follows Humphrey and Echelmeyer (1990) exactly and is the predominant model explored by Hills et al. (2020). 
-- instantaneous_mixing_model.py
+- ./cylindricalstefan/lib/instantaneous_mixing_model.py
 
 The instantaneous model is extended to two dimensions for testing any influence that advection of the downgoing drill may have on the ice temperature. As stated in Hills et al. (2020; Supplementary Material S.3), at short timescales (hours) or far distances behind the drill (~500 times the borehole radius in this case) the problem is exactly one-dimensional. 
-- thermal_model_2d.py
+- ./cylindricalstefan/lib/thermal_model_2d.py
 
 3) Double Diffusion Model
 
 This was meant to be a more rigorous model which allows for thermal and molecular diffusion within the borehole (i.e. the mixing is no longer instantaneous). Unfortunately, we have had some numerical issues with this version of the model. 
-- double_diffusion_model.py
+- ./cylindricalstefan/lib/double_diffusion_model.py
+
+Testing
+---
+
+Unit testing is done for all scripts.
+- ./cylindricalstefan/tests/
 
 Dependencies
 ---

@@ -13,7 +13,8 @@ June 12, 2019
 """
 
 import numpy as np
-from constants import constantsIceDiver
+
+from cylindricalstefan.lib.constants import constantsIceDiver
 const = constantsIceDiver()
 
 # -------------------------------------------------------------------------------------------------------------------------------
@@ -165,7 +166,7 @@ def transcendental(lam,St,Qbar,alphai,alphaw,fluxLoc):
 
 from scipy.integrate import ode
 
-def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
+def analyticalFreeze(r0,T_inf,Q_sol,tf=10.,n=100,Tf=0,const=const,verbose=False):
     """
     A quasi-static approximation for freezing in a cylinder
     Crepeau and Siahpush 2008
@@ -183,6 +184,8 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
         far-field temperature
     Q_sol: float
         heat source inside the hole
+    tf: float
+        time for end of simulation
     n: int, optional
         number of points
     Tf: float, optional
@@ -210,7 +213,7 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     rs = np.linspace(0,r0,n)
     qdot = Q_sol*(Tf-T_inf)*const.ki/(r0**2.)
     t0 = 0.
-    tf = 10.*r0**2./(const.ki/(const.rhoi*const.ci))
+    tf *= r0**2./(const.ki/(const.rhoi*const.ci))
     dt = tf/1000.
     ts = np.arange(t0,tf,dt)
 
@@ -233,10 +236,11 @@ def analyticalFreeze(r0,T_inf,Q_sol,n=100,Tf=0,const=const,verbose=False):
     # --- Iterate on the ODE --- #
 
     i = 1
-    while S.successful() and S.t < tf:
+    while S.successful() and S.t+dt < tf:
         S.integrate(S.t+dt)
         if verbose:
             print("%s: %g %g" % (i, S.t*(const.alphai)/(r0**2.), S.y/r0))
+            print(S.t,tf)
         R = S.y[0]
         R_out[i] = R
         T_out[i] = freezingTemperature(r0,R,rs,T_inf,qdot,Tf,const)
