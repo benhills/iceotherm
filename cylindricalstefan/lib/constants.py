@@ -12,7 +12,7 @@ Earth and Space Sciences
 July 29, 2019
 """
 
-class constantsIceDiver(object):
+class constantsHotPointDrill(object):
     """
     Temperature Constants
 

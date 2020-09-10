@@ -14,8 +14,8 @@ June 12, 2019
 
 import numpy as np
 
-from cylindricalstefan.lib.constants import constantsIceDiver
-const = constantsIceDiver()
+from cylindricalstefan.lib.constants import constantsHotPointDrill
+const = constantsHotPointDrill()
 
 # -------------------------------------------------------------------------------------------------------------------------------
 

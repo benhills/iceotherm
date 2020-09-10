@@ -14,15 +14,15 @@ June 12, 2019
 
 import numpy as np
 
-from cylindricalstefan.lib.constants import constantsIceDiver
-const = constantsIceDiver()
-from cylindricalstefan.lib.concentration_functions import Tf_depression,molDiff
+from cylindricalstefan.lib.constants import constantsHotPointDrill
+const = constantsHotPointDrill()
+from cylindricalstefan.lib.concentration_functions import molDiff
 
 # ---------------------------------------------------------------------
 
 class constantsWorster(object):
     def __init__(self):
-        self.m = -0.5       # Freezing depression constant (degC wt.%-1)
+        self.Kf = -0.5       # Freezing depression constant (degC wt.%-1)
         self.eps = 0.05     # Dimensionless diffusivity (Le/alpha)
         self.Tinf = 20.     # Far-field temperature (degC)
         self.LCp = 80.      # Latent heat over specific heat capacity (degC)
@@ -202,15 +202,14 @@ def worsterInequality(Tb,Tinf,C0,const=const,const_worst=const_worst,worsterChec
         eps_liq = const_worst.eps_liq
         # Freezing point depression
         m = const_worst.Kf
-        # Solve optimization for lambda
-        lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
     else:
         # Get dimensionless diffusivity
         eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
         # Freezing point depression
         m = const.Kf
-        # Solve optimization for lambda
-        lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))
+
+    # Solve optimization for lambda
+    lam = fsolve(worsterLam,0.01,args=(Tb,Tinf,C0,const,worsterCheck))[0]
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.-F(lam))
@@ -291,11 +290,13 @@ def worsterProfiles(lam,eta,Tb,Tinf,C0,const=const,const_worst=const_worst,worst
 # --- Adaptation of Worster Inequality for Outward Cylindrical Freezing --- #
 
 """ Note: These functions were used to build intuition but do not apply to the
-borehole case. These are for outward freezing from some linear heat sink at r=0."""
+borehole case. These are for outward freezing from some linear heat sink within
+the solid near r=0.
+These functions are still in development, so they should be used with caution."""
 
 from scipy.special import expi
 
-def cylindricalLam(lam,Tb,Tinf,C0,Q,const=const):
+def cylindricalLam(lam,Q,Tinf,C0,const=const,worsterCheck=False):
     """
     Optimize for lambda
 
@@ -303,13 +304,12 @@ def cylindricalLam(lam,Tb,Tinf,C0,Q,const=const):
     ----------
     lam: float
         solidification coefficient
-    Tb: float
-        fixed temperature at the inner boundary condition
+    Q: float
+        heat flux in the solid
     Tinf: float
         bulk temperature far from phase boundary
     C0: float
         initial concentration in the solution that the solid is moving into
-    Q: float
     const: class
         constants
 
@@ -319,30 +319,42 @@ def cylindricalLam(lam,Tb,Tinf,C0,Q,const=const):
         output to minimize
     """
 
-    # Get dimensionless diffusivity
-    eps_i,eps_s = diffusivityEps(Tinf,C0,const)
+    if worsterCheck:
+        # Get dimensionless diffusivity
+        eps_sol = const_worst.eps
+        eps_liq = const_worst.eps
+        # Freezing point depression
+        m = const_worst.Kf
+    else:
+        # Get dimensionless diffusivity
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.+lam**2.*np.exp(lam**2.)*expi(-lam**2.))
     # Freezing point depression, Worster 4.6
-    Ti = Tf_depression(Ci,const=const)
+    Ti = m*Ci
 
     # Setup the optimization
-    lhs = -const.L/const.Cp
-    rhs1 = Q/(4.*np.pi*const.ki*eps_i**2.*lam**2.)
-    rhs2 = (Ti-Tinf)/(eps_s**2.*lam**2.*np.exp(eps_s**2.*lam**2.)*expi(-eps_s**2.*lam**2.))
+    if worsterCheck:
+        lhs = const_worst.LCp
+    else:
+        lhs = const.L/const.ci
+    rhs1 = Q/(4.*np.pi*const.ki*eps_sol**2.*lam**2.)
+    rhs2 = (Ti-Tinf)/(eps_liq**2.*lam**2.*np.exp(eps_liq**2.*lam**2.)*expi(-eps_liq**2.*lam**2.))
 
     return lhs - rhs1 + rhs2
 
-def cylindricalInequality(Tb,Tinf,C0,const=const):
+def cylindricalInequality(Q,Tinf,C0,const=const,worsterCheck=False):
     """
     The inequality which describes the conditions under which we have
     constitutional supercooling (i.e. slush)
 
     Parameters
     ----------
-    Tb: float
-        fixed temperature at the inner boundary condition
+    Q: float
+        heat flux in the solid
     Tinf: float
         bulk temperature far from phase boundary
     C0: float
@@ -357,23 +369,35 @@ def cylindricalInequality(Tb,Tinf,C0,const=const):
         where this value is < 0 there is constitutional supercooling.
     """
 
-    # Get dimensionless diffusivity
-    eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
-    lam = fsolve(cylindricalLam,0.01,args=(Tb,Tinf,C0,const))
+    if worsterCheck:
+        # Get dimensionless diffusivity
+        eps_sol = const_worst.eps
+        eps_liq = const_worst.eps
+        # Freezing point depression
+        m = const_worst.Kf
+    else:
+        # Get dimensionless diffusivity
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
+
+    # Solve optimization for lambda
+    lam = fsolve(cylindricalLam,0.01,args=(Q,Tinf,C0,const))
 
     # Concentration from Worster 4.12a
     Ci = C0/(1.-np.sqrt(np.pi)*lam*np.exp(lam**2.)*erfc(lam))
     # Freezing point depression, Worster 4.6
-    Ti = Tf_depression(Ci,const=const)
+    Ti = m*Ci
 
     # transcendental equation from Worster 4.14
-    F = np.sqrt(np.pi)*(eps_s*lam)*np.exp((eps_s*lam)**2.)*erfc(eps_s*lam)
+    F = np.sqrt(np.pi)*(eps_liq*lam)*np.exp((eps_liq*lam)**2.)*erfc(eps_liq*lam)
 
-    constitutional_supercooling = abs(eps_s**2.*(Tinf-Ti)/F + const.Kf*(Ci-C0)/F)
+    # Inequality for constitutional supercooling, Worster 4.15
+    constitutional_supercooling = abs(eps_liq**2.*(Tinf-Ti)/F + const.Kf*(Ci-C0)/F)
 
     return constitutional_supercooling
 
-def cylindricalProfiles(eta,Tb,Tinf,C0,Q,const=const):
+def cylindricalProfiles(lam,eta,Q,Tinf,C0,const=const,worsterCheck=False):
     """
     Temperature profiles in the solid and solution, based on Worster 4.8 and 4.9 for cylindrical coordinates
     Concentration profile in solution, based on Worster 4.10 for cylindrical coordinates
@@ -384,8 +408,8 @@ def cylindricalProfiles(eta,Tb,Tinf,C0,Q,const=const):
         solidification coefficient
     eta: float
         simlarity variable, Worster 4.11
-    Tb: float
-        fixed temperature at the inner boundary condition
+    Q: float
+        heat flux in the solid
     Tinf: float
         bulk temperature far from phase boundary
     C0: float
@@ -403,23 +427,31 @@ def cylindricalProfiles(eta,Tb,Tinf,C0,Q,const=const):
         concentration in the liquid
     """
 
-    # Get dimensionless diffusivity
-    eps_i,eps_s = diffusivityEps(Tinf,C0,const=const)
-    lam = fsolve(cylindricalLam,0.01,args=(Tb,Tinf,C0,const))
+    if worsterCheck:
+        # Get dimensionless diffusivity
+        eps_sol = const_worst.eps
+        eps_liq = const_worst.eps
+        # Freezing point depression
+        m = const_worst.Kf
+    else:
+        # Get dimensionless diffusivity
+        eps_sol,eps_liq = diffusivityEps(Tinf,C0,const=const)
+        # Freezing point depression
+        m = const.Kf
 
     # Concentration, based on Worster 4.12a for cylindrical coordinates
     Ci = C0/(1.+lam**2.*np.exp(lam**2.)*expi(-lam**2.))
     # Freezing point depression, Worster 4.6
-    Ti = Tf_depression(Ci,const=const)
+    Ti = m*Ci
 
     # Concentration in the liquid
     Cliq = C0 + (Ci-C0)*expi(-eta**2.)/expi(-lam**2.)
     # Temperature profile in the solid
-    flux = (Q/2.*np.pi*const.k)
+    flux = (Q/2.*np.pi*const.ki)
     integral = np.log(eta/lam)
-    Tsol = flux*integral+Tinf + (Ti-Tinf)*expi(-eps_s**2.*lam**2.)/expi(-eps_s**2.*lam**2.)
+    Tsol = flux*integral + Tinf + (Ti-Tinf)*expi(-eps_liq**2.*lam**2.)/expi(-eps_liq**2.*lam**2.)
     # Temperature profile in the liquid
-    Tliq = Tinf + (Ti-Tinf)*expi(-eps_s**2.*eta**2.)/expi(-eps_s**2.*lam**2.)
+    Tliq = Tinf + (Ti-Tinf)*expi(-eps_liq**2.*eta**2.)/expi(-eps_liq**2.*lam**2.)
 
     return Tsol,Tliq,Cliq
 

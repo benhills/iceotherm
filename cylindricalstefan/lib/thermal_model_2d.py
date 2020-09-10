@@ -14,8 +14,8 @@ April 22, 2020
 
 import numpy as np
 
-from cylindricalstefan.lib.constants import constantsIceDiver
-const = constantsIceDiver()
+from cylindricalstefan.lib.constants import constantsHotPointDrill
+const = constantsHotPointDrill()
 
 import dolfin
 dolfin.parameters['allow_extrapolation'] = True

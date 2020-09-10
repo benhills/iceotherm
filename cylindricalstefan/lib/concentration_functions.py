@@ -16,8 +16,8 @@ import numpy as np
 
 from scipy.interpolate import interp1d
 
-from cylindricalstefan.lib.constants import constantsIceDiver
-const = constantsIceDiver()
+from cylindricalstefan.lib.constants import constantsHotPointDrill
+const = constantsHotPointDrill()
 
 # -----------------------------------------------------------------------
 
