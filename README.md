@@ -34,6 +34,7 @@ There is an analytical solution for melting with a heat source that stays at the
 
 The above functions are for the conventional Stefan problem with pure water in the borehole. The problem is significantly complicated by the addition of antifreeze into the borehole solution. Most of the theory on freezing into a binary solution was developed by Worster (2000). His theory is all in cartesian coordinates, but we provide some of the useful functions here as a reference:
 - ./cylindricalstefan/lib/analytical_binary_solution.py
+In the above script, there are also functions for cylindrical coordinates, these are still in development and should only be used experimentally.
 
 2) Instantaneous Mixing Model
 
@@ -45,7 +46,7 @@ The instantaneous model is extended to two dimensions for testing any influence 
 
 3) Double Diffusion Model
 
-This was meant to be a more rigorous model which allows for thermal and molecular diffusion within the borehole (i.e. the mixing is no longer instantaneous). Unfortunately, we have had some numerical issues with this version of the model. 
+This was meant to be a more rigorous model which allows for thermal and molecular diffusion within the borehole (i.e. the mixing is no longer instantaneous). Unfortunately, we have had some numerical issues with this version of the model, so it is still in development. 
 - ./cylindricalstefan/lib/double_diffusion_model.py
 
 Testing
