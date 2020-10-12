@@ -108,7 +108,7 @@ class instantaneous_mixing_model():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def get_initial_conditions(self,rho_solute=const.rhom):
+    def get_initial_conditions(self,rho_solute=const.rhom,data_dir=None):
         """
         Set the initial condition at the end of melting (melting can be solved analytically)
         """
@@ -137,7 +137,7 @@ class instantaneous_mixing_model():
         self.v_i = dolfin.TestFunction(self.ice_V)
         self.T_i = dolfin.Function(self.ice_V)
         self.C = self.C_init
-        self.Tf_wall = Tf_depression(self.C)
+        self.Tf_wall = Tf_depression(self.C,data_dir=data_dir)
         # Get the updated solution properties
         self.rhos = self.C + const.rhow*(1.-self.C/rho_solute)
         self.cs = (self.C/rho_solute)*const.ce+(1.-(self.C/rho_solute))*const.cw
@@ -170,18 +170,18 @@ class instantaneous_mixing_model():
 
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
-    def update_boundary_conditions(self):
+    def update_boundary_conditions(self,data_dir=None):
         """
         Update the thermal boundary conditions for new wall location based on the current concentration.
         """
 
         # Update the melting temperature
-        self.Tf = Tf_depression(self.C)/abs(self.T_inf)
+        self.Tf = Tf_depression(self.C,data_dir=data_dir)/abs(self.T_inf)
         self.Tf_wall = self.Tf
         # Reset ice boundary condition
         self.bc_iWall = dolfin.DirichletBC(self.ice_V, self.Tf_wall, self.iWall)
 
-    def solve_molecular(self,rho_solute=const.rhom):
+    def solve_molecular(self,rho_solute=const.rhom,data_dir=None):
         """
         Update the solution concentration depending on how far the hole wall moved.
         """
@@ -190,7 +190,7 @@ class instantaneous_mixing_model():
         self.C *= (self.Rstar/np.exp(self.ice_coords[self.ice_idx_wall,0]))**2.
         # Recalculate the freezing temperature
         self.Tf_last = self.Tf
-        self.Tf = Tf_depression(self.C)
+        self.Tf = Tf_depression(self.C,data_dir=data_dir)
         # Get the updated solution properties
         self.rhos = self.C + const.rhow*(1.-self.C/rho_solute)
         self.cs = (self.C/rho_solute)*const.ce+(1.-(self.C/rho_solute))*const.cw
@@ -213,7 +213,7 @@ class instantaneous_mixing_model():
         # Update previous profile to current
         self.u0_i.assign(self.T_i)
 
-    def injection_energy_balance(self,source,solute='methanol'):
+    def injection_energy_balance(self,source,solute='methanol',data_dir=None):
         """
         Update the concentration and temperature at the time of injection.
         """
@@ -229,10 +229,10 @@ class instantaneous_mixing_model():
         phi_dT = -phi/(self.rhos*self.cs)/abs(self.T_inf)
 
         # Hard set on solution temperature (assume that the mixing energy spreads evenly)
-        self.Tf = Tf_depression(self.C)/abs(self.T_inf)
+        self.Tf = Tf_depression(self.C,data_dir=data_dir)/abs(self.T_inf)
         # Bump the last freezing temperature up
         # this way the mixing enthalpy is accounted for in wall movement
-        self.Tf_last = (Tf_depression(self.C-C_inject)+phi_dT)/abs(self.T_inf)
+        self.Tf_last = (Tf_depression(self.C-C_inject,data_dir=data_dir)+phi_dT)/abs(self.T_inf)
 
     def move_wall(self,const=const):
         """
@@ -283,7 +283,7 @@ class instantaneous_mixing_model():
     # ----------------------------------------------------------------------------------------------------------------------------------------
 
 
-    def run(self,verbose=False,initialize_array=True):
+    def run(self,verbose=False,initialize_array=True,data_dir=None):
         """
         Iterate the model through the given time array.
         """
@@ -297,10 +297,10 @@ class instantaneous_mixing_model():
                 print(round(t*self.t0/60.),end=' min, ')
 
             # --- Ethanol Injection --- #
-            self.injection_energy_balance(self.source[i+1])
+            self.injection_energy_balance(self.source[i+1],data_dir=data_dir)
 
             # --- Thermal Diffusion --- #
-            self.update_boundary_conditions()
+            self.update_boundary_conditions(data_dir=data_dir)
             self.solve_thermal()
 
             # --- Move the Mesh --- #
@@ -311,7 +311,7 @@ class instantaneous_mixing_model():
                 break
 
             # --- Molecular Diffusion --- #
-            self.solve_molecular()
+            self.solve_molecular(data_dir=data_dir)
 
             # Save the new wall location
             self.Rstar = np.exp(self.ice_coords[self.ice_idx_wall,0])

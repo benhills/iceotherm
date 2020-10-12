@@ -139,7 +139,7 @@ def etaKhattab(Xe,T,const=const):
             976.050*(Xw*Xe*(Xw-Xe)**2./T))
     return eta_s
 
-def Tf_depression(C,solute='methanol',linear=False,const=const):
+def Tf_depression(C,solute='methanol',linear=False,data_dir=None,const=const):
     """
     Freezing point depression
     interpolated from empirical values in Industrial Solvents Handbook
@@ -164,16 +164,18 @@ def Tf_depression(C,solute='methanol',linear=False,const=const):
         Tf = const.Kf*C
         return Tf
     else:
+        if data_dir is None:
+            data_dir='../../data/'
         if solute=='methanol':
             # Get percent by mass
             PBM = C_pbm(C,const.rhom)
             # industrial solvents handbook, percent by mass
-            Tfd = np.load('../../data/methanol_freezingdepression_PBM.npy')
+            Tfd = np.load(data_dir+'methanol_freezingdepression_PBM.npy')
         elif solute=='ethanol':
             # Get percent by mass
             PBM = C_pbm(C,const.rhoe)
             # industrial solvents handbook, percent by mass
-            Tfd = np.load('../../data/ethanol_freezingdepression_PBM.npy')
+            Tfd = np.load(data_dir+'ethanol_freezingdepression_PBM.npy')
         # linear interpolation between points
         Tfd_interp = interp1d(Tfd[0], Tfd[1])
         Tf = Tfd_interp(PBM)
