@@ -25,10 +25,12 @@ def conductivity(T,rho,const=constants()):
     krho = 2.*ki*rho/(3.*const.rho-rho)
     return krho
 
-def heat_capacity(T,const=constants()):
+def heat_capacity(T,rho,const=constants()):
     if np.any(T<150):
         T += const.T0
-    return 152.5 + 7.122*T
+    Ci = 152.5 + 7.122*T
+    Ca = 1000.
+    return Ci*(rho/const.rho)+Ca*(1.-rho/const.rho)
 
 # ---------------------------------------------------
 

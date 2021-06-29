@@ -50,6 +50,7 @@ class ice_temperature():
         self.p = 0.      # Lliboutry shape factor for vertical velocity (large p is ~linear)
 
         ### Ice Properties ###
+        self.beta = const.beta
         self.k = const.k*np.ones(self.nz)
         self.Cp = const.Cp*np.ones(self.nz)
         self.rho = const.rho*np.ones(self.nz)
@@ -117,7 +118,7 @@ class ice_temperature():
         ### Discretize the vertical coordinate ###
         self.dz = np.mean(np.gradient(self.z))      # Vertical step
         self.P = const.rho*const.g*(self.H-self.z)  # Pressure
-        self.pmp = self.P*const.beta                # Pressure melting
+        self.pmp = self.P*self.beta                # Pressure melting
 
 
     def source_terms(self,const=const):
@@ -234,7 +235,7 @@ class ice_temperature():
         # Update variables that are thickness dependent
         self.dz = np.mean(np.gradient(self.z))      # Vertical step
         self.P = const.rho*const.g*(self.H-self.z)  # Pressure
-        self.pmp = self.P*const.beta                # Pressure melting
+        self.pmp = self.P*self.beta                # Pressure melting
 
         # Stability, check the CFL
         if np.max(self.v_z)*self.dt/self.dz > 1.:
@@ -258,8 +259,10 @@ class ice_temperature():
     def diffusivity_update(self):
         """
         """
-        self.k = conductivity(self.T.copy(),self.rho)
-        self.Cp = heat_capacity(self.T.copy())
+        if 'conductivity' in self.flags:
+            self.k = conductivity(self.T.copy(),self.rho)
+        if 'heat_capacity' in self.flags:
+            self.Cp = heat_capacity(self.T.copy(),self.rho)
 
         # Update diffusion stencil (advection gets updated with velocity profile)
         self.diff = (self.k/(self.rho*self.Cp))*(self.dt/(self.dz**2.))
@@ -361,10 +364,9 @@ class ice_temperature():
             # Boundary Conditions
             self.B[0,:] = 0.  # Neumann at bed
             self.B[-1,:] = 0. # Dirichlet at surface
-            if i%1000 == 0: # Only update the deformational heat source periodically because it is computationally expensive
-                self.source_terms()
-            self.q_b = self.tau_b*self.Uslide # Update sliding heat flux
-            self.Tgrad = -(self.qgeo+self.q_b)/self.k[0]  # Temperature gradient at bed updated from sliding heat flux
+            # Source
+            self.source_terms()
+            self.Tgrad = -(self.qgeo+self.q_b)/self.k[0]             # Temperature gradient at bed
             self.Sdot[0] += -2*self.dz*self.Tgrad*self.diff[0]/self.dt # update boundaries on heat source vector
             self.Sdot[-1] = 0.
 
