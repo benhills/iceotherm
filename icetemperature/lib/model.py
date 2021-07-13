@@ -132,6 +132,7 @@ class ice_temperature():
         ### Strain Heat Production ###
         if self.Udef == 0.:
             Q = np.zeros_like(tau_xz)
+            eps_xz = np.zeros_like(tau_xz)
         else:
             # Calculate the viscosity
             A = viscosity(self.T,self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)

@@ -40,31 +40,3 @@ class constants(object):
         self.K = 1.09e-6                        # Thermal Diffusivity m2 s-1
         # CP (2010) pg. 406
         self.beta = -7.42e-8                    # Clausius-Clapeyron K Pa-1
-
-def rateFactor(temp,const,P=0.):
-    """
-
-    Rate Facor function for ice viscosity, A(T)
-    Cuffey and Paterson (2010), equation 3.35
-
-    Parameters
-    --------
-    temp:   float,  Temperature
-    const:  class,  Constants
-    P:      float,  Pressure
-
-    Output
-    --------
-    A:      float,  Rate Factor, viscosity = A^(-1/n)/2
-
-    """
-    # create an array for activation energies
-    Q = const.Qminus*np.ones_like(temp)
-    Q[temp>-10.] = const.Qplus
-    # Convert to K
-    T = temp + const.T0
-    # equation 3.35
-    A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.beta*P))-(1/const.Tstar)))
-    return A
-
-

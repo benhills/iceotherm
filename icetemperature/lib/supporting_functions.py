@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 Author:
@@ -14,7 +14,7 @@ from scipy.special import gammaincc as γincc
 from scipy.special import erf
 from scipy.integrate import quad
 from scipy.optimize import minimize
-from constants import constants, rateFactor
+from constants import constants
 
 # ---------------------------------------------------
 
@@ -30,9 +30,36 @@ def heat_capacity(T,rho,const=constants()):
         T += const.T0
     Ci = 152.5 + 7.122*T
     Ca = 1000.
-    return Ci*(rho/const.rho)+Ca*(1.-rho/const.rho)
+    return Ci #*(rho/const.rho)+Ca*(1.-rho/const.rho)
 
 # ---------------------------------------------------
+
+def rateFactor(temp,const,P=0.):
+    """
+
+    Rate Facor function for ice viscosity, A(T)
+    Cuffey and Paterson (2010), equation 3.35
+
+    Parameters
+    --------
+    temp:   float,  Temperature
+    const:  class,  Constants
+    P:      float,  Pressure
+
+    Output
+    --------
+    A:      float,  Rate Factor, viscosity = A^(-1/n)/2
+
+    """
+    # create an array for activation energies
+    Q = const.Qminus*np.ones_like(temp)
+    Q[temp>-10.] = const.Qplus
+    # Convert to K
+    T = temp + const.T0
+    # equation 3.35
+    A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.beta*P))-(1/const.Tstar)))
+    return A
+
 
 def viscosity(T,z,const=constants(),
         tau_xz=None,v_surf=None):
@@ -230,5 +257,3 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
     if verbose:
         print('Finished Robin Solution for analytic temperature profile.\n')
     return z,T
-
-
