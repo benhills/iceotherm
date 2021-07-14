@@ -198,7 +198,7 @@ class ice_temperature():
         # Diffusion Matrix
         self.diff = (self.k/(self.rho*self.Cp))*(self.dt/(self.dz**2.)) # Thermal diffusivity (adjusted for time and spatial step)
         self.A = sparse.lil_matrix((self.nz, self.nz))                  # Create a sparse matrix
-        self.A.setdiag((1.-2.*self.diff)*np.ones(self.nz))              # Set the center diagonal
+        self.A.setdiag((1.-2.*self.diff)*np.ones(self.nz))              # Set the center diagonal (centered difference)
         self.A.setdiag((1.*self.diff[1:])*np.ones(self.nz-1),k=-1)      # Set the -1 diagonal
         self.A.setdiag((1.*self.diff[:-1])*np.ones(self.nz-1),k=1)      # Set the +1 diagonal
         self.B = sparse.lil_matrix((self.nz, self.nz))                  # Create a sparse matrix
@@ -207,7 +207,7 @@ class ice_temperature():
         for i in range(len(self.z)):
             adv = (-self.v_z[i]*self.dt/self.dz)    # Advection (adjusted for time and spatial step)
             self.B[i,i] = adv                       # Set the center diagonal
-            self.B[i,i-1] = -adv                    # Set the -1 diagonal (backward difference) TODO: check forward/backward
+            self.B[i,i-1] = -adv                    # Set the -1 diagonal (upwind scheme)
 
         # Boundary Conditions
         # Neumann at bed
@@ -306,7 +306,7 @@ class ice_temperature():
             ### Update to current time
             update_time(self,i)
 
-            ### Solve
+            ### Solve (forward difference in time)
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
             self.T = T_new
 
