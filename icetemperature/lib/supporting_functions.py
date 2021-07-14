@@ -12,11 +12,11 @@ import numpy as np
 
 # ------------------------------------------------------------------------------------------
 
-def print_and_save(self,i):
+def print_and_save(self,i,print_increment=1000):
     """
-
+    Print and save output every 1000th time step
     """
-    if i%1000 == 0 or self.ts[i] == self.ts[-1]:
+    if i%print_increment== 0 or self.ts[i] == self.ts[-1]:
         if 'verbose' in self.flags:
             print('t =',int(self.ts[i]/const.spy),'; dt =',self.dt/const.spy,'; melt rate =',np.round(self.Mrate*1000.,2),'; melt cum = ',np.round(self.Mcum,2),'; q_b = ',self.q_b)
         if 'save_all' in self.flags:
@@ -30,12 +30,12 @@ def print_and_save(self,i):
 
 def update_time(self):
     """
-    Update to current time
+    Update variables to current time
     """
     self.Udef,self.Uslide = self.Udefs[i],self.Uslides[i]   # Update the velocity terms from input
     self.T[-1] = self.Ts[i]                                 # Set surface temperature condition from input
     if self.Hs is not None:
-        self.thickness_update(self.Hs[i]) # thickness update
+        thickness_update(self,self.Hs[i]) # thickness update
     v_z_surf = self.adot[i]      # set vertical velocity
     # add extra term from Weertman if desired
     if 'weertman_vel' in self.flags:
@@ -51,7 +51,7 @@ def update_time(self):
         self.B[i,i-1] = -adv
     # Ice Properties
     if 'temp-dependent' in self.flags:
-        self.diffusivity_update()
+        diffusivity_update(self)
     # Boundary Conditions
     self.B[0,:] = 0.  # Neumann at bed
     self.B[-1,:] = 0. # Dirichlet at surface
@@ -65,7 +65,7 @@ def update_time(self):
 
 def melt_rate(self):
     """
-
+    Calculate the melt/freeze rate and save the cumulative melt to an output field
     """
     ### Calculate the volume melted/frozen during the time step, then hard reset to pmp.
     if np.any(self.T>self.pmp): # If Melting
@@ -93,12 +93,12 @@ def melt_rate(self):
         if self.Mcum > self.Mcum_max:
             self.Mcum = self.Mcum_max
 
-# ------------------------------------------------------------------------------------------
-
 def thickness_update(self,H_new,T_upper=None):
     """
-
+    Stretch/shrink the depth array to match a new thickness at each timestep.
+    Interpolate temperatures to their new position.
     """
+
     # If no upper fill value is provided for the interpolation, use the current surface temperature
     if T_upper is None:
         T_upper = self.T[-1]
@@ -139,8 +139,10 @@ def thickness_update(self,H_new,T_upper=None):
 
 def diffusivity_update(self):
     """
-
+    Calculate the thermal diffusivity (k/rho/Cp) based on the updated temperature and density profile.
+    Reset the stencils accordingly.
     """
+
     if 'conductivity' in self.flags:
         self.k = conductivity(self.T.copy(),self.rho)
     if 'heat_capacity' in self.flags:
