@@ -9,251 +9,152 @@ April 28, 2020
 """
 
 import numpy as np
-from scipy.special import gamma as γ
-from scipy.special import gammaincc as γincc
-from scipy.special import erf
-from scipy.integrate import quad
-from scipy.optimize import minimize
-from constants import constants
 
-# ---------------------------------------------------
+# ------------------------------------------------------------------------------------------
 
-def conductivity(T,rho,const=constants()):
-    if np.any(T<150):
-        T += const.T0
-    ki = 9.828*np.exp(-5.7e-3*T)
-    krho = 2.*ki*rho/(3.*const.rho-rho)
-    return krho
-
-def heat_capacity(T,rho,const=constants()):
-    if np.any(T<150):
-        T += const.T0
-    Ci = 152.5 + 7.122*T
-    Ca = 1000.
-    return Ci #*(rho/const.rho)+Ca*(1.-rho/const.rho)
-
-# ---------------------------------------------------
-
-def rateFactor(temp,const,P=0.):
+def print_and_save(self,i):
     """
 
-    Rate Facor function for ice viscosity, A(T)
-    Cuffey and Paterson (2010), equation 3.35
+    """
+    if i%1000 == 0 or self.ts[i] == self.ts[-1]:
+        if 'verbose' in self.flags:
+            print('t =',int(self.ts[i]/const.spy),'; dt =',self.dt/const.spy,'; melt rate =',np.round(self.Mrate*1000.,2),'; melt cum = ',np.round(self.Mcum,2),'; q_b = ',self.q_b)
+        if 'save_all' in self.flags:
+            self.Mrate_all = np.append(self.Mrate_all,self.Mrate)
+            self.Mcum_all = np.append(self.Mcum_all,self.Mcum)
+            self.Ts_out = np.append(self.Ts_out,[self.T],axis=0)
+            if self.Hs is not None:
+                self.zs_out = np.append(self.zs_out,[self.z],axis=0)
 
-    Parameters
-    --------
-    temp:   float,  Temperature
-    const:  class,  Constants
-    P:      float,  Pressure
+# ------------------------------------------------------------------------------------------
 
-    Output
-    --------
-    A:      float,  Rate Factor, viscosity = A^(-1/n)/2
+def update_time(self):
+    """
+    Update to current time
+    """
+    self.Udef,self.Uslide = self.Udefs[i],self.Uslides[i]   # Update the velocity terms from input
+    self.T[-1] = self.Ts[i]                                 # Set surface temperature condition from input
+    if self.Hs is not None:
+        self.thickness_update(self.Hs[i]) # thickness update
+    v_z_surf = self.adot[i]      # set vertical velocity
+    # add extra term from Weertman if desired
+    if 'weertman_vel' in self.flags:
+        v_z_surf += self.Udef*self.dH
+    if self.p == 0.: # by exponent, gamma
+        self.v_z = self.Mrate/const.spy + v_z_surf*(self.z/self.H)**self.gamma
+    else: # by shape factor, p
+        zeta = (1.-(self.z/self.H))
+        self.v_z = self.Mrate/const.spy + v_z_surf*(1.-((self.p+2.)/(self.p+1.))*zeta+(1./(self.p+1.))*zeta**(self.p+2.))
+    for i in range(len(self.z)):
+        adv = (-self.v_z[i]*self.dt/self.dz)
+        self.B[i,i] = adv
+        self.B[i,i-1] = -adv
+    # Ice Properties
+    if 'temp-dependent' in self.flags:
+        self.diffusivity_update()
+    # Boundary Conditions
+    self.B[0,:] = 0.  # Neumann at bed
+    self.B[-1,:] = 0. # Dirichlet at surface
+    # Source
+    self.source_terms()
+    self.Tgrad = -(self.qgeo+self.q_b)/self.k[0]             # Temperature gradient at bed
+    self.Sdot[0] += -2*self.dz*self.Tgrad*self.diff[0]/self.dt # update boundaries on heat source vector
+    self.Sdot[-1] = 0.
+
+# ------------------------------------------------------------------------------------------
+
+def melt_rate(self):
+    """
 
     """
-    # create an array for activation energies
-    Q = const.Qminus*np.ones_like(temp)
-    Q[temp>-10.] = const.Qplus
-    # Convert to K
-    T = temp + const.T0
-    # equation 3.35
-    A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.beta*P))-(1/const.Tstar)))
-    return A
-
-
-def viscosity(T,z,const=constants(),
-        tau_xz=None,v_surf=None):
-    """
-    Rate Facor function for ice viscosity, A(T)
-    Cuffey and Paterson (2010), equation 3.35
-
-    Optional case for optimization to the surface velocity using function
-    surfVelOpt()
-
-    Parameters
-    ----------
-    T:      array
-        Ice Temperature (C)
-    z:      array
-        Depth (m)
-    const:  class
-        Constants
-    tau_xz: array, optional
-        Shear stress profile, only needed if optimizing the strain rate to match surface
-    v_surf: float, optional
-        Surface velocity to be matched in optimization
-
-    Output
-    ----------
-    A:      array,  Rate Factor, viscosity = A^(-1/n)/2
-    """
-
-    # create an array for activation energies
-    Q = const.Qminus*np.ones_like(T)
-    Q[T>-10.] = const.Qplus
-    # Overburden pressure
-    P = const.rho*const.g*z
-
-    if v_surf is None:
-        # rate factor Cuffey and Paterson (2010) equation 3.35
-        A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
+    ### Calculate the volume melted/frozen during the time step, then hard reset to pmp.
+    if np.any(self.T>self.pmp): # If Melting
+        Tplus = (self.T[self.T>self.pmp]-self.pmp[self.T>self.pmp])*self.int_stencil[self.T>self.pmp]*self.dz # Integrate the temperature above PMP (units- degCm)
+        rho = self.rho[self.T>self.pmp]
+        Cp = self.Cp[self.T>self.pmp]
+        self.Mrate = np.sum(Tplus*rho*Cp*const.spy/(const.rhow*const.L*self.dt)) # calculate the melt rate in m/yr
+        self.T[self.T>self.pmp] = self.pmp[self.T>self.pmp] # reset temp to PMP
+        self.Mcum += self.Mrate*self.dt/const.spy # Update the cumulative melt by the melt rate
+    elif self.Mcum > 0 and 'water_cum' in self.flags: # If freezing
+        Tminus = (self.T[0]-self.pmp[0])*0.5*self.dz # temperature below the PMP; this is only for the point at the bed because we assume water drains
+        self.Mrate = Tminus*self.rho*self.Cp*const.spy/(const.rhow*const.L*self.dt) # melt rate should be negative now.
+        if self.Mrate*self.dt/const.spy < self.Mcum: # If the amount frozen this time step is less than water available
+            self.T[0] = self.pmp[0] # reset to PMP
+            self.Mcum += self.Mrate*self.dt/const.spy # Update the cumulative melt by the melt rate
+        else: # If the amount frozen this time step is more than water available
+            M_ = (self.Mrate*self.dt/const.spy-self.Mcum) # calculate the 'extra' amount frozen in m
+            Tminus = M_*(const.rhow*const.L)/(self.rho*self.Cp) # What is the equivalent temperature to cool bottom node (units - degCm)
+            self.T[0] = Tminus/(0.5*self.dz) + self.pmp[0] # update the temperature at the bed
+            self.Mcum = 0. # cumulative melt to zero because everything is frozen
     else:
-        # Get the final coefficient value
-        res = minimize(surfVelOpt, 1, args=(Q,P,tau_xz,T,z,v_surf))
-        # C was scaled for appropriate stepping of the minimization function, scale back
-        C_fin = res['x']*1e-13
-        # rate factor Cuffey and Paterson (2010) equation 3.35
-        A = C_fin*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1/const.Tstar)))
-    return A
+        self.Mrate = 0.
+    # Cap the lake level
+    if self.Mcum_max is not None:
+        if self.Mcum > self.Mcum_max:
+            self.Mcum = self.Mcum_max
 
-def surfVelOpt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
-    """
-    Optimize the viscosity profile using the known surface velocity
-    TODO: has not been fully tested
-    """
-    # Change the coefficient so that the minimization function takes appropriate steps
-    C_opt = C*1e-13
-    # rate factor Cuffey and Paterson (2010) equation 3.35
-    A = C_opt*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1/const.Tstar)))
-    # Shear Strain Rate, Weertman (1968) eq. 7
-    eps_xz = A*tau_xz**const.n
-    Q = 2.*(eps_xz*tau_xz)
-    # Integrate the strain rate to get the surface velocity
-    vx_opt = np.trapz(eps_xz,z)
-    Q_opt = np.trapz(Q,z)
-    #return abs(vx_opt-v_surf)*const.spy
-    return abs(Q_opt-v_surf*tau_xz[0])*const.spy
+# ------------------------------------------------------------------------------------------
 
-# ---------------------------------------------------
-
-def analytical_model(Ts,qgeo,H,adot,nz=101,
-             const=constants(),
-             rateFactor=rateFactor,
-             T_ratefactor=-10.,
-             dHdx=0.,tau_dx=0.,
-             gamma=1.397,gamma_plus=True,
-             verbose=False):
-    """
-    1-D Analytical temperature profile from Rezvanbehbahani et al. (2019)
-    Main improvement from the Robin (1955) solution is the nonlinear velocity profile
-
-    Assumptions:
-        1) no horizontal advection
-        2) vertical advection takes the form v=(z/H)**(gamma)
-        3) firn column is treated as equivalent thickness of ice
-        TODO: 4) If base is warmer than the melting temperature recalculate with new basal gradient
-        5) strain heating is added to the geothermal flux
-
-    Parameters
-    ----------
-    Ts:     float,  Surface Temperature (C)
-    qgeo:   float,  Geothermal flux (W/m2)
-    H:      float,  Ice thickness (m)
-    adot:   float,  Accumulation rate (m/yr)
-    nz:     int,    Number of layers in the ice column
-    const:  class,  Constants
-    rateFactor:     function, to calculate the rate factor from Glen's Flow Law
-    T_ratefactor:   float, Temperature input to rate factor function (C)
-    dHdx:       float, Surface slope to calculate tau_dx
-    tau_dx:     float, driving stress input directly (Pa)
-    gamma:      float, exponent on the vertical velocity
-    gamma_plus: bool, optional to determine gama_plus from the logarithmic regression with Pe Number
-
-    Output
-    ----------
-    z:      1-D array,  Discretized height above bed through the ice column
-    T:      1-D array,  Analytic solution for ice temperature
+def thickness_update(self,H_new,T_upper=None):
     """
 
-    # if the surface accumulation is input in m/yr convert to m/s
-    if adot>1e-5:
-        adot/=const.spy
-    # Thermal diffusivity
-    K = const.k/(const.rho*const.Cp)
-    if gamma_plus:
-        # Solve for gamma using the logarithmic regression with the Pe number
-        Pe = adot*H/K
-        if Pe < 5. and verbose:
-            print('Pe:',Pe)
-            print('The gamma_plus fit is not well-adjusted for low Pe numbers.')
-        # Rezvanbehbahani (2019) eq. (19)
-        gamma = 1.39+.044*np.log(Pe)
-    if dHdx != 0. and tau_dx == 0.:
-        # driving stress Nye (1952)
-        tau_dx = const.rho*const.g*H*abs(dHdx)
-    if tau_dx != 0:
-        # Energy from strain heating is added to the geothermal flux
-        A = rateFactor(np.array([T_ratefactor]),const)[0]
-        # Rezvanbehbahani (2019) eq. (22)
-        qgeo_s = (2./5.)*A*H*tau_dx**4.
-        qgeo += qgeo_s
-    # Rezvanbehbahani (2019) eq. (19)
-    lamb = adot/(K*H**gamma)
-    phi = -lamb/(gamma+1)
-    z = np.linspace(0,H,nz)
-
-    # Rezvanbehbahani (2019) eq. (17)
-    Γ_1 = γincc(1/(1+gamma),-phi*z**(gamma+1))*γ(1/(1+gamma))
-    Γ_2 = γincc(1/(1+gamma),-phi*H**(gamma+1))*γ(1/(1+gamma))
-    term2 = Γ_1-Γ_2
-    T = Ts + qgeo*(-phi)**(-1./(gamma+1.))/(const.k*(gamma+1))*term2
-    return z,T
-
-
-def Robin_T(Ts,qgeo,H,adot,nz=101,
-        const=constants(),melt=True,verbose=False):
     """
-    Analytic ice temperature model from Robin (1955)
+    # If no upper fill value is provided for the interpolation, use the current surface temperature
+    if T_upper is None:
+        T_upper = self.T[-1]
+    # Build an interpolator from the prior state
+    T_interp = interp1d(self.z,self.T,fill_value=(np.nan,T_upper),bounds_error=False)
+    # Interpolate for new temperatures
+    self.z = np.linspace(0.,H_new,self.nz)
+    self.T = T_interp(self.z)
 
-    Assumptions:
-        1) no horizontal advection
-        2) vertical advection is linear with depth
-        3) firn column is treated as equivalent thickness of ice
-        4) If base is warmer than the melting temperature recalculate with new basal gradient
-        5) no strain heating
+    # Assign the new thickness value
+    self.H = H_new
 
-    Parameters
-    ----------
-    Ts:     float,  Surface Temperature (C)
-    qgeo:   float,  Geothermal flux (W/m2)
-    H:      float,  Ice thickness (m)
-    adot:   float,  Accumulation rate (m/yr)
-    nz:     int,    Number of layers in the ice column
-    const:  class,  Constants
-    melt:   bool,   Choice to allow melting, when true the bed temperature
-                    is locked at the pressure melting point and melt rates
-                    are calculated
+    # Update variables that are thickness dependent
+    self.dz = np.mean(np.gradient(self.z))      # Vertical step
+    self.P = const.rho*const.g*(self.H-self.z)  # Pressure
+    self.pmp = self.P*self.beta                # Pressure melting
 
-    Output
-    ----------
-    z:      1-D array,  Discretized height above bed through the ice column
-    T:      1-D array,  Analytic solution for ice temperature
+    # Stability, check the CFL
+    if np.max(self.v_z)*self.dt/self.dz > 1.:
+        print('CFL = ',max(self.v_z)*self.dt/self.dz,'; cannot be > 1.')
+        print('dt = ',self.dt/const.spy,' years')
+        print('dz = ',self.dz,' meters')
+        raise ValueError("Numerically unstable, choose a smaller time step or a larger spatial step.")
+
+    # Update diffusion stencil (advection gets updated with velocity profile)
+    self.diff = (self.k/(self.rho*self.Cp))*(self.dt/(self.dz**2.))
+    self.A.setdiag((1.-2.*self.diff)*np.ones(self.nz))       # Set the diagonal
+    self.A.setdiag((1.*self.diff[1:])*np.ones(self.nz-1),k=-1)     # Set the diagonal
+    self.A.setdiag((1.*self.diff[:-1])*np.ones(self.nz-1),k=1)      # Set the diagonal
+    # Boundary Conditions
+    # Neumann at bed
+    self.A[0,1] = 2.*self.diff[0]
+    # Dirichlet at surface
+    self.A[-1,:] = 0.
+    self.A[-1,-1] = 1.
+
+# ------------------------------------------------------------------------------------------
+
+def diffusivity_update(self):
     """
 
-    if verbose:
-        print('Solving Robin Solution for analytic temperature profile')
-        print('Surface Temperature:',Ts)
-        print('Geothermal Flux:',qgeo)
-        print('Ice Thickness:',H)
-        print('Accumulation Rate',adot)
+    """
+    if 'conductivity' in self.flags:
+        self.k = conductivity(self.T.copy(),self.rho)
+    if 'heat_capacity' in self.flags:
+        self.Cp = heat_capacity(self.T.copy(),self.rho)
 
-    z = np.linspace(0,H,nz)
-    q2 = adot/(2*(const.k/(const.rho*const.Cp))*H)
-    Tb_grad = -qgeo/const.k
-    f = lambda z : np.exp(-(z**2.)*q2)
-    TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in z])
-    dTs = Ts - TTb[-1]
-    T = TTb + dTs
-    # recalculate if basal temperature is above melting (see van der Veen pg 148)
-    Tm = const.beta*const.rho*const.g*H
-    if melt and T[0] > Tm:
-        Tb_grad = -2.*np.sqrt(q2)*(Tm-Ts)/np.sqrt(np.pi)*(np.sqrt(erf(adot*H*const.rho*const.Cp/(2.*const.k)))**(-1))
-        TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in z])
-        dTs = Ts - TTb[-1]
-        T = TTb + dTs
-        M = (Tb_grad + qgeo/const.k)*const.k/const.L
-        if verbose:
-            print('Melting at the bed: ', np.round(M*const.spy/const.rho*1000.,2), 'mm/year')
-    if verbose:
-        print('Finished Robin Solution for analytic temperature profile.\n')
-    return z,T
+    # Update diffusion stencil (advection gets updated with velocity profile)
+    self.diff = (self.k/(self.rho*self.Cp))*(self.dt/(self.dz**2.))
+    self.A.setdiag((1.-2.*self.diff)*np.ones(self.nz))       # Set the diagonal
+    self.A.setdiag((1.*self.diff[1:])*np.ones(self.nz-1),k=-1)     # Set the diagonal
+    self.A.setdiag((1.*self.diff[:-1])*np.ones(self.nz-1),k=1)      # Set the diagonal
+    # Boundary Conditions
+    # Neumann at bed
+    self.A[0,1] = 2.*self.diff[0]
+    # Dirichlet at surface
+    self.A[-1,:] = 0.
+    self.A[-1,-1] = 1.
+
