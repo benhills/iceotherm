@@ -9,6 +9,10 @@ April 28, 2020
 """
 
 import numpy as np
+from constants import constants
+
+# Instantiate the constants class
+const = constants()
 
 # ------------------------------------------------------------------------------------------
 
@@ -28,7 +32,7 @@ def print_and_save(self,i,print_increment=1000):
 
 # ------------------------------------------------------------------------------------------
 
-def update_time(self):
+def update_time(self,i):
     """
     Update variables to current time
     """

@@ -255,7 +255,7 @@ class ice_temperature():
             self.T = T_new.copy()
             # Update the thermal diffusivity based on the new temperature profile
             if 'temp-dependent' in self.flags:
-                self.diffusivity_update()
+                diffusivity_update(self)
             # Calculate the updated temperature profile using the stencils and heat sources
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
             # Reset anything above the pressure melting point
@@ -301,14 +301,14 @@ class ice_temperature():
         for i in range(len(self.ts)):
 
             ### Print and output
-            self.print_and_save(i)
+            print_and_save(self,i)
 
             ### Update to current time
-            self.update_time()
+            update_time(self,i)
 
             ### Solve
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
             self.T = T_new
 
             ### Calculate melting/freezing
-            self.melt_rate()
+            melt_rate(self)
