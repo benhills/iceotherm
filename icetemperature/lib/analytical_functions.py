@@ -25,12 +25,10 @@ def conductivity(T,rho,const=constants()):
     krho = 2.*ki*rho/(3.*const.rho-rho)
     return krho
 
-def heat_capacity(T,rho,const=constants()):
+def heat_capacity(T,const=constants()):
     if np.any(T<150):
         T += const.T0
-    Ci = 152.5 + 7.122*T
-    Ca = 1000.
-    return Ci #*(rho/const.rho)+Ca*(1.-rho/const.rho)
+    return 152.5 + 7.122*T
 
 # ---------------------------------------------------
 
@@ -121,7 +119,7 @@ def surfVelOpt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
     # Integrate the strain rate to get the surface velocity
     vx_opt = np.trapz(eps_xz,z)
     Q_opt = np.trapz(Q,z)
-    #return abs(vx_opt-v_surf)*const.spy
+    # Optimize to conserve energy
     return abs(Q_opt-v_surf*tau_xz[0])*const.spy
 
 # ---------------------------------------------------
