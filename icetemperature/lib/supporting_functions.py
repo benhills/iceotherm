@@ -81,7 +81,9 @@ def melt_rate(self):
         self.Mcum += self.Mrate*self.dt/const.spy # Update the cumulative melt by the melt rate
     elif self.Mcum > 0 and 'water_cum' in self.flags: # If freezing
         Tminus = (self.T[0]-self.pmp[0])*0.5*self.dz # temperature below the PMP; this is only for the point at the bed because we assume water drains
-        self.Mrate = Tminus*self.rho*self.Cp*const.spy/(const.rhow*const.L*self.dt) # melt rate should be negative now.
+        rho = self.rho[0]
+        Cp = self.Cp[0]
+        self.Mrate = Tminus*rho*Cp*const.spy/(const.rhow*const.L*self.dt) # melt rate should be negative now.
         if self.Mrate*self.dt/const.spy < self.Mcum: # If the amount frozen this time step is less than water available
             self.T[0] = self.pmp[0] # reset to PMP
             self.Mcum += self.Mrate*self.dt/const.spy # Update the cumulative melt by the melt rate
