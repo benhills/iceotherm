@@ -60,7 +60,7 @@ def update_time(self,i):
     self.B[0,:] = 0.  # Neumann at bed
     self.B[-1,:] = 0. # Dirichlet at surface
     # Source
-    self.source_terms()
+    self.source_terms(i=i)
     self.Tgrad = -(self.qgeo+self.q_b)/self.k[0]             # Temperature gradient at bed
     self.Sdot[0] += -2*self.dz*self.Tgrad*self.diff[0]/self.dt # update boundaries on heat source vector
     self.Sdot[-1] = 0.

@@ -128,7 +128,7 @@ class ice_temperature():
         self.pmp = self.P*self.beta                # Pressure melting
 
 
-    def source_terms(self,const=const):
+    def source_terms(self,i=0,const=const):
         """
         Heat sources from strain heating and downstream advection (this is typically a heat sink)
         """
@@ -157,7 +157,7 @@ class ice_temperature():
         if 'weertman_vel' in self.flags:
             v_x = self.Uslide + np.insert(cumtrapz(eps_xz,self.z),0,0)    # Horizontal velocity
             # Horizontal Temperature Gradients, Weertman (1968) eq. 6b
-            dTdx = self.dTs + (self.T-np.mean(self.Ts))/2.*(1./self.H*self.dH-(1./np.mean(self.adot))*self.da)
+            dTdx = self.dTs + (self.T-self.Ts[i])/2.*(1./self.H*self.dH-(1./self.adot[i])*self.da)
             # Final Source Term
             self.Sdot = Q - v_x*dTdx
         else:
