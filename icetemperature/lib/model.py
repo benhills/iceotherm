@@ -63,9 +63,10 @@ class ice_temperature():
         self.rho = const.rho*np.ones(self.nz)   # Density (default to const.rho)                    [kg/m3]
 
         ### Gradients ###
-        self.dTs = 0.                   # Change in air temperature over distance x/y [C/m]
-        self.dH = np.sin(.2*np.pi/180.) # Thickness gradient in x/y directions, used for deformational flow calculation [m/m]
-        self.da = 0.                    # Accumulation gradient in x/y directions     [m/yr/m]
+        self.dS = np.sin(.2*np.pi/180.) # Surface gradient in x/y directions, used for deformational flow calculation [m/m]
+        self.dTs = 0.                   # Change in air temperature over distance x/y   [C/m]
+        self.dH = 0.                    # Thickness gradient in x/y directions          [m/m]
+        self.da = 0.                    # Accumulation gradient in x/y directions       [m/yr/m]
 
         ### Velocity Terms ###
         self.Udef = 0.                  # Deformational velocity    [m/s]
@@ -136,7 +137,7 @@ class ice_temperature():
         ### Strain Heat Production ###
 
         # Shear Stress by Lamellar Flow (van der Veen section 4.2)
-        tau_xz = const.rho*const.g*(self.H-self.z)*abs(self.dH)     # [Pa]
+        tau_xz = const.rho*const.g*(self.H-self.z)*abs(self.dS)     # [Pa]
         # Calculate heat sources, Q
         if self.Udef == 0.:
             eps_xz = np.zeros_like(tau_xz)
