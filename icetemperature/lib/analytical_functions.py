@@ -19,6 +19,21 @@ from constants import constants
 # ---------------------------------------------------
 
 def conductivity(T,rho,const=constants()):
+    """
+    Temperature- and density-dependent conductivity
+
+    Parameters
+    --------
+    T:      array
+        Ice Temperature (C)
+    rho:    array
+        Firn density (kg m-3)
+    const:  class,  Constants
+
+    Output
+    krho:   array, conductivity
+    --------
+    """
     if np.any(T<150):
         T += const.T0
     ki = 9.828*np.exp(-5.7e-3*T)
@@ -26,15 +41,27 @@ def conductivity(T,rho,const=constants()):
     return krho
 
 def heat_capacity(T,const=constants()):
+    """
+    Temperature--dependent heat capacity
+
+    Parameters
+    --------
+    T:      array
+        Ice Temperature (C)
+    const:  class,  Constants
+
+    Output
+    --------
+    Cp:     array, heat capacity
+    """
     if np.any(T<150):
         T += const.T0
-    return 152.5 + 7.122*T
-
+    Cp = 152.5 + 7.122*T
+    return Cp
 # ---------------------------------------------------
 
 def rateFactor(temp,const,P=0.):
     """
-
     Rate Facor function for ice viscosity, A(T)
     Cuffey and Paterson (2010), equation 3.35
 
@@ -47,7 +74,6 @@ def rateFactor(temp,const,P=0.):
     Output
     --------
     A:      float,  Rate Factor, viscosity = A^(-1/n)/2
-
     """
     # create an array for activation energies
     Q = const.Qminus*np.ones_like(temp)
