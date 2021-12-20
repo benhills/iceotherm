@@ -60,7 +60,7 @@ def heat_capacity(T,const=constants()):
     return Cp
 # ---------------------------------------------------
 
-def rateFactor(temp,const,P=0.):
+def rate_factor(temp,const,P=0.):
     """
     Rate Facor function for ice viscosity, A(T)
     Cuffey and Paterson (2010), equation 3.35
@@ -92,7 +92,7 @@ def viscosity(T,z,const=constants(),
     Cuffey and Paterson (2010), equation 3.35
 
     Optional case for optimization to the surface velocity using function
-    surfVelOpt()
+    surf_vel_opt()
 
     Parameters
     ----------
@@ -123,14 +123,14 @@ def viscosity(T,z,const=constants(),
         A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
     else:
         # Get the final coefficient value
-        res = minimize(surfVelOpt, 1, args=(Q,P,tau_xz,T,z,v_surf))
+        res = minimize(surf_vel_opt, 1, args=(Q,P,tau_xz,T,z,v_surf))
         # C was scaled for appropriate stepping of the minimization function, scale back
         C_fin = res['x']*1e-13
         # rate factor Cuffey and Paterson (2010) equation 3.35
-        A = C_fin*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1/const.Tstar)))
+        A = C_fin*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
     return A
 
-def surfVelOpt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
+def surf_vel_opt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
     """
     Optimize the viscosity profile using the known surface velocity
     TODO: has not been fully tested
@@ -152,7 +152,7 @@ def surfVelOpt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
 
 def Rezvan_T(Ts,qgeo,H,adot,nz=101,
              const=constants(),
-             rateFactor=rateFactor,
+             rate_factor=rate_factor,
              T_ratefactor=-10.,
              dHdx=0.,tau_dx=0.,
              gamma=1.397,gamma_plus=True,
@@ -176,7 +176,7 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
     adot:   float,  Accumulation rate (m/yr)
     nz:     int,    Number of layers in the ice column
     const:  class,  Constants
-    rateFactor:     function, to calculate the rate factor from Glen's Flow Law
+    rate_factor:     function, to calculate the rate factor from Glen's Flow Law
     T_ratefactor:   float, Temperature input to rate factor function (C)
     dHdx:       float, Surface slope to calculate tau_dx
     tau_dx:     float, driving stress input directly (Pa)
@@ -207,7 +207,7 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
         tau_dx = const.rho*const.g*H*abs(dHdx)
     if tau_dx != 0:
         # Energy from strain heating is added to the geothermal flux
-        A = rateFactor(np.array([T_ratefactor]),const)[0]
+        A = rate_factor(np.array([T_ratefactor]),const)[0]
         # Rezvanbehbahani (2019) eq. (22)
         qgeo_s = (2./5.)*A*H*tau_dx**4.
         qgeo += qgeo_s
@@ -260,6 +260,10 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
         print('Geothermal Flux:',qgeo)
         print('Ice Thickness:',H)
         print('Accumulation Rate',adot)
+
+    # if the surface accumulation is input in m/yr convert to m/s
+    if adot>1e-5:
+        adot/=const.spy
 
     z = np.linspace(0,H,nz)
     q2 = adot/(2*(const.k/(const.rho*const.Cp))*H)
