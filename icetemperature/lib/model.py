@@ -142,7 +142,7 @@ class ice_temperature():
             # Calculate the viscosity
             A = viscosity(self.T,self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
-            eps_xz = (A*tau_xz**const.n)/const.spy      # [/s]
+            eps_xz = (A*tau_xz**const.n)                # [/s]
             # strain heat term
             Q = 2.*(eps_xz*tau_xz)/(self.rho*self.Cp)   # [K/s]
         # Sliding friction heat production

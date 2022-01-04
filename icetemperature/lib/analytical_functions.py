@@ -128,6 +128,8 @@ def viscosity(T,z,const=constants(),
         C_fin = res['x']*1e-13
         # rate factor Cuffey and Paterson (2010) equation 3.35
         A = C_fin*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
+        # A is optimized to a m/yr velocity so bring the dimensions back to seconds
+        A /= const.spy
     return A
 
 def surf_vel_opt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
