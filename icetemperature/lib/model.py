@@ -102,10 +102,6 @@ class ice_temperature():
             v_z_surf = self.adot
             T_surf = self.Ts
 
-        # Weertman (1968; equation 3) has an extra term to add to the vertical velocity
-        if 'weertman_vel' in self.flags:
-            v_z_surf -= (self.Udef+self.Uslide)*self.dH
-
         # initial temperature from analytical solution
         if analytical == 'Robin':
             self.z,self.T = Robin_T(T_surf,self.qgeo,self.H,
