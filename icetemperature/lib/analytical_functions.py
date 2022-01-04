@@ -13,6 +13,7 @@ from scipy.special import gamma as γ
 from scipy.special import gammaincc as γincc
 from scipy.special import erf
 from scipy.integrate import quad
+from scipy.special import lambertw
 from scipy.optimize import minimize
 from constants import constants
 
@@ -40,6 +41,8 @@ def conductivity(T,rho,const=constants()):
     krho = 2.*ki*rho/(3.*const.rho-rho)
     return krho
 
+# ---------------------------------------------------
+
 def heat_capacity(T,const=constants()):
     """
     Temperature--dependent heat capacity
@@ -58,6 +61,7 @@ def heat_capacity(T,const=constants()):
         T += const.T0
     Cp = 152.5 + 7.122*T
     return Cp
+
 # ---------------------------------------------------
 
 def rate_factor(temp,const,P=0.):
@@ -84,6 +88,7 @@ def rate_factor(temp,const,P=0.):
     A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.beta*P))-(1/const.Tstar)))
     return A
 
+# ---------------------------------------------------
 
 def viscosity(T,z,const=constants(),
         tau_xz=None,v_surf=None):
@@ -131,6 +136,8 @@ def viscosity(T,z,const=constants(),
         # A is optimized to a m/yr velocity so bring the dimensions back to seconds
         A /= const.spy
     return A
+
+# ---------------------------------------------------
 
 def surf_vel_opt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
     """
@@ -225,6 +232,7 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
     T = Ts + qgeo*(-phi)**(-1./(gamma+1.))/(const.k*(gamma+1))*term2
     return z,T
 
+# ---------------------------------------------------
 
 def Robin_T(Ts,qgeo,H,adot,nz=101,
         const=constants(),melt=True,verbose=False):
@@ -287,3 +295,86 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
     if verbose:
         print('Finished Robin Solution for analytic temperature profile.\n')
     return z,T
+
+# ---------------------------------------------------
+
+def Meyer_T(Ts,H,adot,eps_xy,nz=101,
+            const=constants(),
+            rate_factor=rate_factor,
+            T_ratefactor=-10.,
+            Tb=0.,lam=0.):
+    """
+    Meyer and Minchew (2018)
+    A 1-D analytical model of temperate ice in shear margins
+    Uses the contact problem in applied mathematics
+
+    Assumptions:
+        1) horizontal advection is treated as an energy sink
+        2) vertical advection is constant in depth (they do some linear analysis in their supplement)
+        4) base is at the melting temperature
+        5) Melting temperature is 0 through the column
+
+    Parameters
+    ----------
+    Ts:         float,  Surface Temperature (C)
+    H:          float,  Ice thickness (m)
+    adot:       float,  Accumulation rate (m/yr)
+    eps_xy:     float,  Plane strain rate (m/m)
+    nz:         int,    Number of layers in the ice column
+    const:      class,  Constants
+    rateFactor: func,   function for the rate factor, A in Glen's Law
+    T_ratefactor:   float, Temperature input to rate factor function (C)
+    Tb:         float,  Basal temperature, at the pressure melting point
+    lam:        float,  Paramaterized horizontal advection term
+                        Meyer and Minchew (2018) eq. 11
+
+    Output
+    ----------
+    z:      1-D array,  Discretized height above bed through the ice column
+    T:      1-D array,  Analytic solution for ice temperature
+    """
+
+    # if the surface accumulation is input in m/yr convert to m/s
+    if adot>1e-5:
+        adot/=const.spy
+    if eps_xy>1e-4:
+        eps_xy/=const.spy
+    # Height
+    z = np.linspace(0.,H,nz)
+    # rate factor (Meyer uses 2.4e-24; Table 1)
+    A = rate_factor(np.array([T_ratefactor]),const=const)[0]
+    # Brinkman Number
+    S = 2.*A**(-1./const.n)*(eps_xy)**((const.n+1.)/const.n)
+    dT = Tb - Ts
+    Br = (S*H**2.)/(const.k*dT)
+    # Peclet Number
+    Pe = (const.rho*const.Cp*adot*H)/(const.k)
+    LAM = lam*H**2./(const.k*dT)
+    print('Meyer; Pe:', Pe,'Br:',Br)
+    # temperature solution is different for diffusion only vs. advection-diffusion
+    if abs(Pe) < 1e-3:
+        # Critical Shear Strain
+        eps_bar = (const.k*dT/(A**(-1/const.n)*H**(2.)))**(const.n/(const.n+1.))
+        # Find the temperate thickness
+        if eps_xy > eps_bar:
+            hbar = 1.-np.sqrt(2./Br)
+        else:
+            hbar = 0.
+        # Solve for the temperature profile
+        T = Ts + dT*(Br/2.)*(1.-((z/H)**2.)-2.*hbar*(1.-z/H))
+        T[z/H<hbar] = 0.
+    else:
+        # Critical Shear Strain
+        eps_1 = (((0.5*Pe**2.)/(Pe-1.+np.exp(-Pe))+0.5*LAM)**(const.n/(const.n+1.)))
+        eps_bar = eps_1 * ((const.k*dT/(A**(-1./const.n)*H**(2.)))**(const.n/(const.n+1.)))
+        # Find the temperate thickness
+        if eps_xy > eps_bar:
+            h_1 = 1.-(Pe/(Br-LAM))
+            h_2 = -(1./Pe)*(1.+np.real(lambertw(-np.exp(-(Pe**2./(Br-LAM))-1.))))
+            hbar = h_1 + h_2
+        else:
+            hbar = 0.
+        T = Ts + dT*((Br-LAM)/Pe)*(1.-z/H+(1./Pe)*np.exp(Pe*(hbar-1.))-(1./Pe)*np.exp(Pe*((hbar-z/H))))
+        T[z/H<hbar] = 0.
+    return z,T
+
