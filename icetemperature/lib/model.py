@@ -125,7 +125,7 @@ class ice_temperature():
         self.pmp = self.P*self.beta                # Pressure melting
 
 
-    def source_terms(self,i=0,const=const):
+    def source_terms(self,i=0,const=const,eps_xy=None,A_xy=None):
         """
         Heat sources from strain heating and downstream advection (this is typically a heat sink)
         """
@@ -159,6 +159,19 @@ class ice_temperature():
             self.Sdot = Q - v_x*dTdx
         else:
             self.Sdot = Q
+
+        ### Plane Strain ###
+
+        if eps_xy is not None:
+            # Calculate the viscosity
+            if A_xy is None:
+                A = viscosity(self.pmp,self.z,const=const)
+            else:
+                A = A_xy
+            tau_xy = (eps_xy/(2.*A))**(1./const.n)
+            Q_xy = 2.*(eps_xy*tau_xy)/(self.rho*self.Cp)
+            # Add to the source term
+            self.Sdot += Q_xy
 
     # ------------------------------------------------------------------------------------------
 
@@ -228,7 +241,7 @@ class ice_temperature():
 
     # ------------------------------------------------------------------------------------------
 
-    def run_to_steady_state(self,const=const):
+    def run_to_steady_state(self,const=const,eps_xy=None,A_xy=None):
         """
         Run the initial conditions until stable within self.tol
         """
@@ -253,6 +266,11 @@ class ice_temperature():
             # Update the thermal diffusivity based on the new temperature profile
             if 'temp-dependent' in self.flags:
                 diffusivity_update(self)
+            if 'weertman_vel' in self.flags and steady_iter%1000==0:
+                if A_xy is not None:
+                    A_xy = viscosity(self.T,self.z)
+                self.source_terms(eps_xy=eps_xy,A_xy=A_xy)
+                self.stencil(self.dt)
             # Calculate the updated temperature profile using the stencils and heat sources
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
             # Reset anything above the pressure melting point
