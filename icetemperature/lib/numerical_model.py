@@ -273,8 +273,8 @@ class ice_temperature():
                 self.stencil(self.dt)
             # Calculate the updated temperature profile using the stencils and heat sources
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
-            # Reset anything above the pressure melting point
-            T_new[T_new>self.pmp] = self.pmp[T_new>self.pmp]
+            # Calculate the melt rate and reset anything above the pressure melting point
+            melt_rate(self)
             # Update the iteration counter
             steady_iter += 1
         self.T = T_new.copy()
