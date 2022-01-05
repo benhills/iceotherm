@@ -301,7 +301,7 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
 def Meyer_T(Ts,H,adot,eps_xy,nz=101,
             const=constants(),
             rate_factor=rate_factor,
-            T_ratefactor=-10.,
+            T_bulk='average',
             Tb=0.,lam=0.):
     """
     Meyer and Minchew (2018)
@@ -341,8 +341,15 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
         eps_xy/=const.spy
     # Height
     z = np.linspace(0.,H,nz)
+    # Pressure Melting Point at Bed
+    Tm = const.beta*const.rho*const.g*H
+    # Calcualte an "average" temperature to use for temp-dependent constants
+    if T_bulk == 'average':
+        T_bulk = np.mean([Ts,Tm])
+    k = conductivity(T_bulk,const.rho)
+    Cp = heat_capacity(T_bulk)
     # rate factor (Meyer uses 2.4e-24; Table 1)
-    A = rate_factor(np.array([T_ratefactor]),const=const)[0]
+    A = rate_factor(np.array([T_bulk]),const=const)[0]
     # Brinkman Number
     S = 2.*A**(-1./const.n)*(eps_xy)**((const.n+1.)/const.n)
     dT = Tb - Ts
@@ -378,3 +385,69 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
         T[z/H<hbar] = 0.
     return z,T
 
+# ---------------------------------------------------
+
+def Perol_T(Ts,H,adot,eps_xy,nz=101,
+                const=constants(),
+                rate_factor=rate_factor,
+                T_bulk='average'):
+    """
+    Perol and Rice (2015)
+    Analytic Solution for temperate ice in shear margins (equation #5)
+
+    Assumptions:
+        1) Bed is at the melting point
+        2) All constants are temperature independent (rate factor uses T=-10)
+
+    Parameters
+    ----------
+    Ts:         float,  Surface Temperature (C)
+    H:          float,  Ice thickness (m)
+    adot:       float,  Accumulation rate (m/yr)
+    eps_xy:     float,  Plane strain rate (m/m)
+    nz:         int,    Number of layers in the ice column
+    const:      class,  Constants
+    rateFactor: func,   function for the rate factor, A in Glen's Law
+    T_bulk      float, Temperature input to the rate factor function, A(T)
+
+    Output
+    ----------
+    z:          1-D array,  Discretized height above bed through the ice column
+    T:          1-D array,  Analytic solution for ice temperature
+    """
+
+    # if the surface accumulation is input in m/yr convert to m/s
+    if adot>1e-5:
+        adot/=const.spy
+    if eps_xy>1e-4:
+        eps_xy/=const.spy
+    # Height
+    z = np.linspace(0,H,nz)
+    # Pressure Melting Point at Bed
+    Tm = const.beta*const.rho*const.g*H
+    # Calcualte an "average" temperature to use for temp-dependent constants
+    if T_bulk == 'average':
+        T_bulk = np.mean([Ts,Tm])
+    k = conductivity(T_bulk,const.rho)
+    Cp = heat_capacity(T_bulk)
+    A = rate_factor(np.array([T_bulk]),const=const)[0]
+    # Peclet Number
+    Pe = adot*H/(k/(const.rho*Cp))
+    # Strain Heating
+    S = 2.*A**(-1./const.n)*(eps_xy/2.)**((const.n+1.)/const.n)
+    print('Perol; A:',A, 'S:',S)
+    # Pressure Melting Point at Bed
+    Tm = const.beta*const.rho*const.g*H
+    # Empty Array for Temperatures, then loop through all z's
+    T = np.empty_like(z)
+    for i in range(len(z)):
+        # Two functions to be integrated
+        def f1(lam):
+            return (1.-np.exp(-lam*Pe*z[i]**2./(2.*H**2.)))/(2.*lam*np.sqrt(1.-lam))
+        def f2(lam):
+            return (1.-np.exp(-lam*Pe/2.))/(2.*lam*np.sqrt(1.-lam))
+        # Calculate temperature profile
+        T[i] = Tm + (Ts-Tm)*erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.)) - \
+            S*H**2./(const.k*Pe) * (quad(f1,0.,1.)[0] - \
+            (erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.))) * quad(f2,0.,1.)[0])
+    return z,T
