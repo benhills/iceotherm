@@ -12,8 +12,8 @@ April 28, 2020
 import numpy as np
 from scipy import sparse
 from scipy.integrate import cumtrapz
-from scipy.interpolate import interp1d
-from analytical_functions import *
+from analytical_solutions import *
+from ice_properties import *
 from supporting_functions import *
 from constants import constants
 
