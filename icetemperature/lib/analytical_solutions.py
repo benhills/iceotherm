@@ -161,7 +161,8 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
             const=constants(),
             rate_factor=rate_factor,
             T_bulk='average',
-            Tb=0.,lam=0.):
+            Tb=0.,lam=0.,
+            verbose=False):
     """
     Meyer and Minchew (2018)
     A 1-D analytical model of temperate ice in shear margins
@@ -216,7 +217,8 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
     # Peclet Number
     Pe = (const.rho*const.Cp*adot*H)/(const.k)
     LAM = lam*H**2./(const.k*dT)
-    print('Meyer; Pe:', Pe,'Br:',Br)
+    if verbose:
+        print('Meyer; Pe:', Pe,'Br:',Br)
     # temperature solution is different for diffusion only vs. advection-diffusion
     if abs(Pe) < 1e-3:
         # Critical Shear Strain
@@ -249,7 +251,8 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
 def Perol_T(Ts,H,adot,eps_xy,nz=101,
                 const=constants(),
                 rate_factor=rate_factor,
-                T_bulk='average'):
+                T_bulk='average',
+                verbose=False):
     """
     Perol and Rice (2015)
     Analytic Solution for temperate ice in shear margins (equation #5)
@@ -294,7 +297,8 @@ def Perol_T(Ts,H,adot,eps_xy,nz=101,
     Pe = adot*H/(k/(const.rho*Cp))
     # Strain Heating
     S = 2.*A**(-1./const.n)*(eps_xy/2.)**((const.n+1.)/const.n)
-    print('Perol; A:',A, 'S:',S)
+    if verbose:
+        print('Perol; A:',A, 'S:',S)
     # Pressure Melting Point at Bed
     Tm = const.beta*const.rho*const.g*H
     # Empty Array for Temperatures, then loop through all z's

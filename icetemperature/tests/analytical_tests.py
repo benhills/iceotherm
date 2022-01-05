@@ -17,49 +17,9 @@ import unittest
 
 from constants import constants
 const = constants()
-from analytical_functions import *
+from analytical_solutions import *
 
-from scipy.optimize import fsolve
-
-class TestAnalyticalFunctions(unittest.TestCase):
-
-    def test_conductivity(self):
-        T = -50.
-        rho = 800.
-        krho = conductivity(T,rho,const)
-        self.assertTrue(krho>.8)
-        self.assertTrue(krho<3.5)
-
-    def test_heatcapacity(self):
-        T = -50.
-        cp = heat_capacity(T,const)
-        self.assertTrue(cp>1500.)
-        self.assertTrue(cp<2100.)
-
-    def test_viscosity(self):
-        Ts = -50.
-        qgeo = 0.05
-        H = 2000.
-        adot = .1
-        z,T = Robin_T(Ts,qgeo,H,adot,verbose=True)
-
-        A = viscosity(T,z,const)
-        self.assertTrue(A[0]>1e-28)
-        self.assertTrue(A[0]<1e-23)
-
-        tau_xz = const.rho*const.g*(H-z)*abs(0.03)
-        A = viscosity(T,z,const,tau_xz=tau_xz,v_surf=10.)
-        self.assertTrue(A[0]>1e-28)
-        self.assertTrue(A[0]<1e-23)
-
-    def test_rezvan(self):
-        Ts = -50.
-        qgeo = 0.05
-        H = 2000.
-        adot = .1
-        z,T = Rezvan_T(Ts,qgeo,H,adot,verbose=True)
-        self.assertTrue(np.all(T>-51.))
-        self.assertTrue(np.all(T<0.))
+class TestAnalyticalSolutions(unittest.TestCase):
 
     def test_robin(self):
         Ts = -50.
@@ -74,6 +34,41 @@ class TestAnalyticalFunctions(unittest.TestCase):
         z,T = Robin_T(Ts,qgeo,H,adot)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<1.))
+
+    def test_rezvan(self):
+        Ts = -50.
+        qgeo = 0.05
+        H = 2000.
+        adot = .1
+        z,T = Rezvan_T(Ts,qgeo,H,adot,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<0.))
+
+    def test_meyer(self):
+        Ts = -50.
+        H = 1000.
+        adot = .1
+        eps_xy = 3e-09
+        z,T = Meyer_T(Ts,H,adot,eps_xy,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=0.))
+
+        z,T = Meyer_T(Ts,H,adot,0.,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=0.))
+
+    def test_perol(self):
+        Ts = -50.
+        H = 1000.
+        adot = .1
+        eps_xy = 3e-09
+        z,T = Perol_T(Ts,H,adot,eps_xy,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=50.))
+
+        z,T = Perol_T(Ts,H,adot,0.,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=0.))
 
 if __name__ == '__main__':
     unittest.main()
