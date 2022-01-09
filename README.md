@@ -17,7 +17,7 @@ Models
 
 1) Analytical Solutions
 
-Robin (1955), Rez, Meyer and Minchew (2018), Perol and Rice (2015)
+Robin (1955), Rezvanbehbahani et al. (2019), Meyer and Minchew (2018), Perol and Rice (2015)
 All four solutions are provided as functions in:
 - ./icetemperature/lib/analytical_solutions.py
 
