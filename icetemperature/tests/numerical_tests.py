@@ -18,7 +18,7 @@ import unittest
 from constants import constants
 const = constants()
 from ice_properties import *
-from model import ice_temperature
+from numerical_model import ice_temperature
 
 class TestNumericalFunctions(unittest.TestCase):
 
