@@ -34,8 +34,10 @@ class ice_temperature():
                 1) Use an exponential form as in Rezvanbehbahani et al. (2019)
                 2) Use the shape factor, p, as from Lliboutry
         - Horizontal Advection
+            Longitudinal temperature, accumulation, and thickness gradients must be input manually.
             Shear stress for lamellar flow then optimize the rate_factor to match the surface velocity.
         - Strain Heating
+            Option for additional xy plane shear component (i.e. Meyer/Perol models)
         - Melt
     """
 
