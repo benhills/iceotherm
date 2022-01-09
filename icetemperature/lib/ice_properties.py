@@ -59,34 +59,9 @@ def heat_capacity(T,const=constants()):
 
 # ---------------------------------------------------
 
-def rate_factor(temp,const,P=0.):
-    """
-    Rate Facor function for ice viscosity, A(T)
-    Cuffey and Paterson (2010), equation 3.35
-
-    Parameters
-    --------
-    temp:   float,  Temperature
-    const:  class,  Constants
-    P:      float,  Pressure
-
-    Output
-    --------
-    A:      float,  Rate Factor, viscosity = A^(-1/n)/2
-    """
-    # create an array for activation energies
-    Q = const.Qminus*np.ones_like(temp)
-    Q[temp>-10.] = const.Qplus
-    # Convert to K
-    T = temp + const.T0
-    # equation 3.35
-    A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.beta*P))-(1/const.Tstar)))
-    return A
-
-# ---------------------------------------------------
-
-def viscosity(T,z,const=constants(),
-        tau_xz=None,v_surf=None):
+def rate_factor(T,const=constants(),
+             z=None,P=0.,
+             tau_xz=None,v_surf=None):
     """
     Rate Facor function for ice viscosity, A(T)
     Cuffey and Paterson (2010), equation 3.35
@@ -98,10 +73,12 @@ def viscosity(T,z,const=constants(),
     ----------
     T:      array
         Ice Temperature (C)
-    z:      array
-        Depth (m)
-    const:  class
+    const:  class, optional
         Constants
+    z:      array, optional
+        Depth (m)
+    P:      float, optional
+        Pressure (Pa)
     tau_xz: array, optional
         Shear stress profile, only needed if optimizing the strain rate to match surface
     v_surf: float, optional
@@ -113,41 +90,65 @@ def viscosity(T,z,const=constants(),
     """
 
     # create an array for activation energies
-    Q = const.Qminus*np.ones_like(T)
-    Q[T>-10.] = const.Qplus
+    Qact = const.Qminus*np.ones_like(T)
+    Qact[T>-10.] = const.Qplus
     # Overburden pressure
-    P = const.rho*const.g*z
+    if z is not None:
+        P = const.rho*const.g*z
 
     if v_surf is None:
         # rate factor Cuffey and Paterson (2010) equation 3.35
-        A = const.Astar*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
+        A = const.Astar*np.exp(-(Qact/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
     else:
         # Get the final coefficient value
-        res = minimize(surf_vel_opt, 1, args=(Q,P,tau_xz,T,z,v_surf))
+        res = minimize(surf_vel_opt, 1, args=(T,z,P,Qact,tau_xz,v_surf))
         # C was scaled for appropriate stepping of the minimization function, scale back
         C_fin = res['x']*1e-13
         # rate factor Cuffey and Paterson (2010) equation 3.35
-        A = C_fin*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
+        A = C_fin*np.exp(-(Qact/const.R)*((1./(T+const.T0+const.beta*P))-(1./const.Tstar)))
         # A is optimized to a m/yr velocity so bring the dimensions back to seconds
         A /= const.spy
     return A
 
 # ---------------------------------------------------
 
-def surf_vel_opt(C,Q,P,tau_xz,T,z,v_surf,const=constants()):
+def surf_vel_opt(C,T,z,P,Qact,tau_xz,v_surf,const=constants()):
     """
     Optimize the viscosity profile using the known surface velocity
-    TODO: has not been fully tested
+
+    Parameters
+    ----------
+    C:      float
+        Rate factor coefficient (multiplier)
+    T:      array
+        Ice Temperature (C)
+    z:      array
+        Depth (m)
+    P:      float, optional
+        Pressure (Pa)
+    Qact:   float
+        Activation Energy
+    tau_xz: array
+        Shear stress profile, only needed if optimizing the strain rate to match surface
+    v_surf: float
+        Surface velocity to be matched in optimization
+    const:  class, optional
+        Constants
+
+    Output
+    ----------
+    energy_optimizer    float
+        cost to be minimized
     """
     # Change the coefficient so that the minimization function takes appropriate steps
     C_opt = C*1e-13
     # rate factor Cuffey and Paterson (2010) equation 3.35
-    A = C_opt*np.exp(-(Q/const.R)*((1./(T+const.T0+const.beta*P))-(1/const.Tstar)))
+    A = C_opt*np.exp(-(Qact/const.R)*((1./(T+const.T0+const.beta*P))-(1/const.Tstar)))
     # Shear Strain Rate, Weertman (1968) eq. 7
     eps_xz = A*tau_xz**const.n
     Q = 2.*(eps_xz*tau_xz)
     # Integrate the strain rate to get the surface velocity
-    vx_opt = np.trapz(eps_xz,z)
     Q_opt = np.trapz(Q,z)
     # Optimize to conserve energy
-    return abs(Q_opt-v_surf*tau_xz[0])*const.spy
+    energy_optimizer = abs(Q_opt-v_surf*tau_xz[0])*const.spy
+    return energy_optimizer

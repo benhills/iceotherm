@@ -35,19 +35,19 @@ class TestIceProperties(unittest.TestCase):
         self.assertTrue(cp>1500.)
         self.assertTrue(cp<2100.)
 
-    def test_viscosity(self):
+    def test_rate_factor(self):
         Ts = -50.
         qgeo = 0.05
         H = 2000.
         adot = .1
         z,T = Robin_T(Ts,qgeo,H,adot,verbose=True)
 
-        A = viscosity(T,z,const)
+        A = rate_factor(T,z=z,const=const)
         self.assertTrue(A[0]>1e-28)
         self.assertTrue(A[0]<1e-23)
 
         tau_xz = const.rho*const.g*(H-z)*abs(0.03)
-        A = viscosity(T,z,const,tau_xz=tau_xz,v_surf=10.)
+        A = rate_factor(T,z=z,const=const,tau_xz=tau_xz,v_surf=10.)
         self.assertTrue(A[0]>1e-28)
         self.assertTrue(A[0]<1e-23)
 

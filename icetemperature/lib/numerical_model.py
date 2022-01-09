@@ -34,7 +34,7 @@ class ice_temperature():
                 1) Use an exponential form as in Rezvanbehbahani et al. (2019)
                 2) Use the shape factor, p, as from Lliboutry
         - Horizontal Advection
-            Shear stress for lamellar flow then optimize the viscosity to match the surface velocity.
+            Shear stress for lamellar flow then optimize the rate_factor to match the surface velocity.
         - Strain Heating
         - Melt
     """
@@ -139,8 +139,8 @@ class ice_temperature():
             eps_xz = np.zeros_like(tau_xz)
             Q = np.zeros_like(tau_xz)
         else:
-            # Calculate the viscosity
-            A = viscosity(self.T,self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
+            # Calculate the rate_factor
+            A = rate_factor(self.T,z=self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
             eps_xz = (A*tau_xz**const.n)                # [/s]
             # strain heat term
@@ -163,9 +163,9 @@ class ice_temperature():
         ### Plane Strain ###
 
         if eps_xy is not None:
-            # Calculate the viscosity
+            # Calculate the rate_factor
             if A_xy is None:
-                A = viscosity(self.pmp,self.z,const=const)
+                A = rate_factor(self.pmp,z=self.z,const=const)
             else:
                 A = A_xy
             tau_xy = (eps_xy/(2.*A))**(1./const.n)
@@ -268,7 +268,7 @@ class ice_temperature():
                 diffusivity_update(self)
             if 'weertman_vel' in self.flags and steady_iter%1000==0:
                 if A_xy is not None:
-                    A_xy = viscosity(self.T,self.z)
+                    A_xy = rate_factor(self.T,z=self.z)
                 self.source_terms(eps_xy=eps_xy,A_xy=A_xy)
                 self.stencil(self.dt)
             # Calculate the updated temperature profile using the stencils and heat sources
