@@ -216,16 +216,16 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
     # Brinkman Number
     S = 2.*A**(-1./const.n)*(eps_xy)**((const.n+1.)/const.n)
     dT = Tb - Ts
-    Br = (S*H**2.)/(const.k*dT)
+    Br = (S*H**2.)/(k*dT)
     # Peclet Number
-    Pe = (const.rho*const.Cp*adot*H)/(const.k)
-    LAM = lam*H**2./(const.k*dT)
+    Pe = (const.rho*Cp*adot*H)/(k)
+    LAM = lam*H**2./(k*dT)
     if verbose:
         print('Meyer; Pe:', Pe,'Br:',Br)
     # temperature solution is different for diffusion only vs. advection-diffusion
     if abs(Pe) < 1e-3:
         # Critical Shear Strain
-        eps_bar = (const.k*dT/(A**(-1/const.n)*H**(2.)))**(const.n/(const.n+1.))
+        eps_bar = (k*dT/(A**(-1/const.n)*H**(2.)))**(const.n/(const.n+1.))
         # Find the temperate thickness
         if eps_xy > eps_bar:
             hbar = 1.-np.sqrt(2./Br)
@@ -237,7 +237,7 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
     else:
         # Critical Shear Strain
         eps_1 = (((0.5*Pe**2.)/(Pe-1.+np.exp(-Pe))+0.5*LAM)**(const.n/(const.n+1.)))
-        eps_bar = eps_1 * ((const.k*dT/(A**(-1./const.n)*H**(2.)))**(const.n/(const.n+1.)))
+        eps_bar = eps_1 * ((k*dT/(A**(-1./const.n)*H**(2.)))**(const.n/(const.n+1.)))
         # Find the temperate thickness
         if eps_xy > eps_bar:
             h_1 = 1.-(Pe/(Br-LAM))
@@ -303,8 +303,6 @@ def Perol_T(Ts,H,adot,eps_xy,nz=101,
     S = 2.*A**(-1./const.n)*(eps_xy/2.)**((const.n+1.)/const.n)
     if verbose:
         print('Perol; A:',A, 'S:',S)
-    # Pressure Melting Point at Bed
-    Tm = const.beta*const.rho*const.g*H
     # Empty Array for Temperatures, then loop through all z's
     T = np.empty_like(z)
     for i in range(len(z)):
@@ -315,6 +313,6 @@ def Perol_T(Ts,H,adot,eps_xy,nz=101,
             return (1.-np.exp(-lam*Pe/2.))/(2.*lam*np.sqrt(1.-lam))
         # Calculate temperature profile
         T[i] = Tm + (Ts-Tm)*erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.)) - \
-            S*H**2./(const.k*Pe) * (quad(f1,0.,1.)[0] - \
+            S*H**2./(k*Pe) * (quad(f1,0.,1.)[0] - \
             (erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.))) * quad(f2,0.,1.)[0])
     return z,T
