@@ -18,8 +18,7 @@ from constants import constants
 
 from ice_properties import *
 
-def Robin_T(Ts,qgeo,H,adot,nz=101,
-        const=constants(),melt=True,verbose=False):
+def Robin_T(m,const=constants(),melt=True,verbose=False):
     """
     Analytic ice temperature model from Robin (1955)
 
@@ -32,11 +31,7 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
 
     Parameters
     ----------
-    Ts:     float,  Surface Temperature (C)
-    qgeo:   float,  Geothermal flux (W/m2)
-    H:      float,  Ice thickness (m)
-    adot:   float,  Accumulation rate (m/yr)
-    nz:     int,    Number of layers in the ice column
+    m:      class, Model
     const:  class,  Constants
     melt:   bool,   Choice to allow melting, when true the bed temperature
                     is locked at the pressure melting point and melt rates
@@ -45,46 +40,34 @@ def Robin_T(Ts,qgeo,H,adot,nz=101,
 
     Output
     ----------
-    z:      1-D array,  Discretized height above bed through the ice column
     T:      1-D array,  Analytic solution for ice temperature
     """
 
-    if verbose:
-        print('Solving Robin Solution for analytic temperature profile')
-        print('Surface Temperature:',Ts)
-        print('Geothermal Flux:',qgeo)
-        print('Ice Thickness:',H)
-        print('Accumulation Rate',adot)
+    # Thermal diffusivity
+    alpha = const.k/(const.rho*const.Cp)
 
-    # if the surface accumulation is input in m/yr convert to m/s
-    if adot>1e-5:
-        adot/=const.spy
-
-    z = np.linspace(0,H,nz)
-    q2 = adot/(2*(const.k/(const.rho*const.Cp))*H)
-    Tb_grad = -qgeo/const.k
+    q2 = m.adot/(2*alpha*m.H)
+    Tb_grad = -m.qgeo/const.k
     f = lambda z : np.exp(-(z**2.)*q2)
-    TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in z])
-    dTs = Ts - TTb[-1]
+    TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in m.z])
+    dTs = m.Ts - TTb[-1]
     T = TTb + dTs
     # recalculate if basal temperature is above melting (see van der Veen pg 148)
-    Tm = const.beta*const.rho*const.g*H
-    if melt and T[0] > Tm:
-        Tb_grad = -2.*np.sqrt(q2)*(Tm-Ts)/np.sqrt(np.pi)*(np.sqrt(erf(adot*H*const.rho*const.Cp/(2.*const.k)))**(-1))
-        TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in z])
-        dTs = Ts - TTb[-1]
+    if melt and T[0] > m.pmp[0]:
+        Tb_grad = -2.*np.sqrt(q2)*(m.pmp[0]-m.Ts)/np.sqrt(np.pi)*(np.sqrt(erf(m.adot*m.H/(2.*alpha)))**(-1))
+        TTb = Tb_grad*np.array([quad(f,0,zi)[0] for zi in m.z])
+        dTs = m.Ts - TTb[-1]
         T = TTb + dTs
-        M = (Tb_grad + qgeo/const.k)*const.k/const.L
+        M = (Tb_grad + m.qgeo/const.k)*const.k/const.L
         if verbose:
             print('Melting at the bed: ', np.round(M*const.spy/const.rho*1000.,2), 'mm/year')
     if verbose:
         print('Finished Robin Solution for analytic temperature profile.\n')
-    return z,T
+    return T
 
 # ---------------------------------------------------
 
-def Rezvan_T(Ts,qgeo,H,adot,nz=101,
-             const=constants(),
+def Rezvan_T(m,const=constants(),
              rate_factor=rate_factor,
              T_ratefactor=-10.,
              dHdx=0.,tau_dx=0.,
@@ -103,11 +86,7 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
 
     Parameters
     ----------
-    Ts:     float,  Surface Temperature (C)
-    qgeo:   float,  Geothermal flux (W/m2)
-    H:      float,  Ice thickness (m)
-    adot:   float,  Accumulation rate (m/yr)
-    nz:     int,    Number of layers in the ice column
+    m:      class, Model
     const:  class,  Constants
     rate_factor:     function, to calculate the rate factor from Glen's Flow Law
     T_ratefactor:   float, Temperature input to rate factor function (C)
@@ -119,18 +98,14 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
 
     Output
     ----------
-    z:      1-D array,  Discretized height above bed through the ice column
     T:      1-D array,  Analytic solution for ice temperature
     """
 
-    # if the surface accumulation is input in m/yr convert to m/s
-    if adot>1e-5:
-        adot/=const.spy
     # Thermal diffusivity
-    K = const.k/(const.rho*const.Cp)
+    alpha = const.k/(const.rho*const.Cp)
     if gamma_plus:
         # Solve for gamma using the logarithmic regression with the Pe number
-        Pe = adot*H/K
+        Pe = m.adot*m.H/alpha
         if Pe < 5. and verbose:
             print('Pe:',Pe)
             print('The gamma_plus fit is not well-adjusted for low Pe numbers.')
@@ -143,24 +118,22 @@ def Rezvan_T(Ts,qgeo,H,adot,nz=101,
         # Energy from strain heating is added to the geothermal flux
         A = rate_factor(np.array([T_ratefactor]),const)[0]
         # Rezvanbehbahani (2019) eq. (22)
-        qgeo_s = (2./5.)*A*H*tau_dx**4.
-        qgeo += qgeo_s
+        qgeo_s = (2./5.)*A*m.H*tau_dx**4.
+        qgeo = m.qgeo + qgeo_s
     # Rezvanbehbahani (2019) eq. (19)
-    lamb = adot/(K*H**gamma)
+    lamb = m.adot/(alpha*m.H**gamma)
     phi = -lamb/(gamma+1)
-    z = np.linspace(0,H,nz)
 
     # Rezvanbehbahani (2019) eq. (17)
-    Γ_1 = γincc(1/(1+gamma),-phi*z**(gamma+1))*γ(1/(1+gamma))
-    Γ_2 = γincc(1/(1+gamma),-phi*H**(gamma+1))*γ(1/(1+gamma))
+    Γ_1 = γincc(1/(1+gamma),-phi*m.z**(gamma+1))*γ(1/(1+gamma))
+    Γ_2 = γincc(1/(1+gamma),-phi*m.H**(gamma+1))*γ(1/(1+gamma))
     term2 = Γ_1-Γ_2
-    T = Ts + qgeo*(-phi)**(-1./(gamma+1.))/(const.k*(gamma+1))*term2
-    return z,T
+    T = m.Ts + m.qgeo*(-phi)**(-1./(gamma+1.))/(const.k*(gamma+1))*term2
+    return T
 
 # ---------------------------------------------------
 
-def Meyer_T(Ts,H,adot,eps_xy,nz=101,
-            const=constants(),
+def Meyer_T(m,const=constants(),
             rate_factor=rate_factor,
             T_bulk='average',
             Tb=0.,lam=0.,
@@ -178,11 +151,7 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
 
     Parameters
     ----------
-    Ts:         float,  Surface Temperature (C)
-    H:          float,  Ice thickness (m)
-    adot:       float,  Accumulation rate (m/yr)
-    eps_xy:     float,  Plane strain rate (m/m)
-    nz:         int,    Number of layers in the ice column
+    m:          class,  Model
     const:      class,  Constants
     rateFactor: func,   function for the rate factor, A in Glen's Law
     T_ratefactor:   float, Temperature input to rate factor function (C)
@@ -193,66 +162,55 @@ def Meyer_T(Ts,H,adot,eps_xy,nz=101,
 
     Output
     ----------
-    z:      1-D array,  Discretized height above bed through the ice column
     T:      1-D array,  Analytic solution for ice temperature
     """
 
-    # if the surface accumulation is input in m/yr convert to m/s
-    if adot>1e-5:
-        adot/=const.spy
-    if eps_xy>1e-4:
-        eps_xy/=const.spy
-    # Height
-    z = np.linspace(0.,H,nz)
-    # Pressure Melting Point at Bed
-    Tm = const.beta*const.rho*const.g*H
     # Calcualte an "average" temperature to use for temp-dependent constants
     if T_bulk == 'average':
-        T_bulk = np.mean([Ts,Tm])
+        T_bulk = np.mean([m.Ts,m.pmp[0]])
     k = conductivity(T_bulk,const.rho)
     Cp = heat_capacity(T_bulk)
     # rate factor (Meyer uses 2.4e-24; Table 1)
     A = rate_factor(np.array([T_bulk]),const=const)[0]
     # Brinkman Number
-    S = 2.*A**(-1./const.n)*(eps_xy)**((const.n+1.)/const.n)
-    dT = Tb - Ts
-    Br = (S*H**2.)/(k*dT)
+    S = 2.*A**(-1./const.n)*(m.eps_xy)**((const.n+1.)/const.n)
+    dT = Tb - m.Ts
+    Br = (S*m.H**2.)/(k*dT)
     # Peclet Number
-    Pe = (const.rho*Cp*adot*H)/(k)
-    LAM = lam*H**2./(k*dT)
+    Pe = (const.rho*Cp*m.adot*m.H)/(k)
+    LAM = lam*m.H**2./(k*dT)
     if verbose:
         print('Meyer; Pe:', Pe,'Br:',Br)
     # temperature solution is different for diffusion only vs. advection-diffusion
     if abs(Pe) < 1e-3:
         # Critical Shear Strain
-        eps_bar = (k*dT/(A**(-1/const.n)*H**(2.)))**(const.n/(const.n+1.))
+        eps_bar = (k*dT/(A**(-1/const.n)*m.H**(2.)))**(const.n/(const.n+1.))
         # Find the temperate thickness
-        if eps_xy > eps_bar:
+        if m.eps_xy > eps_bar:
             hbar = 1.-np.sqrt(2./Br)
         else:
             hbar = 0.
         # Solve for the temperature profile
-        T = Ts + dT*(Br/2.)*(1.-((z/H)**2.)-2.*hbar*(1.-z/H))
-        T[z/H<hbar] = 0.
+        T = m.Ts + dT*(Br/2.)*(1.-((m.z/m.H)**2.)-2.*hbar*(1.-m.z/m.H))
+        T[m.z/H<hbar] = 0.
     else:
         # Critical Shear Strain
         eps_1 = (((0.5*Pe**2.)/(Pe-1.+np.exp(-Pe))+0.5*LAM)**(const.n/(const.n+1.)))
-        eps_bar = eps_1 * ((k*dT/(A**(-1./const.n)*H**(2.)))**(const.n/(const.n+1.)))
+        eps_bar = eps_1 * ((k*dT/(A**(-1./const.n)*m.H**(2.)))**(const.n/(const.n+1.)))
         # Find the temperate thickness
-        if eps_xy > eps_bar:
+        if m.eps_xy > eps_bar:
             h_1 = 1.-(Pe/(Br-LAM))
             h_2 = -(1./Pe)*(1.+np.real(lambertw(-np.exp(-(Pe**2./(Br-LAM))-1.))))
             hbar = h_1 + h_2
         else:
             hbar = 0.
-        T = Ts + dT*((Br-LAM)/Pe)*(1.-z/H+(1./Pe)*np.exp(Pe*(hbar-1.))-(1./Pe)*np.exp(Pe*((hbar-z/H))))
-        T[z/H<hbar] = 0.
-    return z,T
+        T = m.Ts + dT*((Br-LAM)/Pe)*(1.-m.z/m.H+(1./Pe)*np.exp(Pe*(hbar-1.))-(1./Pe)*np.exp(Pe*((hbar-m.z/m.H))))
+        T[m.z/m.H<hbar] = 0.
+    return T
 
 # ---------------------------------------------------
 
-def Perol_T(Ts,H,adot,eps_xy,nz=101,
-                const=constants(),
+def Perol_T(m,const=constants(),
                 rate_factor=rate_factor,
                 T_bulk='average',
                 verbose=False):
@@ -266,11 +224,7 @@ def Perol_T(Ts,H,adot,eps_xy,nz=101,
 
     Parameters
     ----------
-    Ts:         float,  Surface Temperature (C)
-    H:          float,  Ice thickness (m)
-    adot:       float,  Accumulation rate (m/yr)
-    eps_xy:     float,  Plane strain rate (m/m)
-    nz:         int,    Number of layers in the ice column
+    m:          class,  Model
     const:      class,  Constants
     rateFactor: func,   function for the rate factor, A in Glen's Law
     T_bulk      float, Temperature input to the rate factor function, A(T)
@@ -278,41 +232,31 @@ def Perol_T(Ts,H,adot,eps_xy,nz=101,
 
     Output
     ----------
-    z:          1-D array,  Discretized height above bed through the ice column
     T:          1-D array,  Analytic solution for ice temperature
     """
 
-    # if the surface accumulation is input in m/yr convert to m/s
-    if adot>1e-5:
-        adot/=const.spy
-    if eps_xy>1e-4:
-        eps_xy/=const.spy
-    # Height
-    z = np.linspace(0,H,nz)
-    # Pressure Melting Point at Bed
-    Tm = const.beta*const.rho*const.g*H
     # Calcualte an "average" temperature to use for temp-dependent constants
     if T_bulk == 'average':
-        T_bulk = np.mean([Ts,Tm])
+        T_bulk = np.mean([m.Ts,m.pmp[0]])
     k = conductivity(T_bulk,const.rho)
     Cp = heat_capacity(T_bulk)
     A = rate_factor(np.array([T_bulk]),const=const)[0]
     # Peclet Number
-    Pe = adot*H/(k/(const.rho*Cp))
+    Pe = m.adot*m.H/(k/(const.rho*Cp))
     # Strain Heating
-    S = 2.*A**(-1./const.n)*(eps_xy/2.)**((const.n+1.)/const.n)
+    S = 2.*A**(-1./const.n)*(m.eps_xy/2.)**((const.n+1.)/const.n)
     if verbose:
         print('Perol; A:',A, 'S:',S)
     # Empty Array for Temperatures, then loop through all z's
-    T = np.empty_like(z)
-    for i in range(len(z)):
+    T = np.empty_like(m.z)
+    for i in range(len(m.z)):
         # Two functions to be integrated
         def f1(lam):
-            return (1.-np.exp(-lam*Pe*z[i]**2./(2.*H**2.)))/(2.*lam*np.sqrt(1.-lam))
+            return (1.-np.exp(-lam*Pe*m.z[i]**2./(2.*m.H**2.)))/(2.*lam*np.sqrt(1.-lam))
         def f2(lam):
             return (1.-np.exp(-lam*Pe/2.))/(2.*lam*np.sqrt(1.-lam))
         # Calculate temperature profile
-        T[i] = Tm + (Ts-Tm)*erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.)) - \
-            S*H**2./(k*Pe) * (quad(f1,0.,1.)[0] - \
-            (erf(np.sqrt(Pe/2.)*(z[i]/H))/erf(np.sqrt(Pe/2.))) * quad(f2,0.,1.)[0])
-    return z,T
+        T[i] = m.pmp[0] + (m.Ts-m.pmp[0])*erf(np.sqrt(Pe/2.)*(m.z[i]/m.H))/erf(np.sqrt(Pe/2.)) - \
+            S*m.H**2./(k*Pe) * (quad(f1,0.,1.)[0] - \
+            (erf(np.sqrt(Pe/2.)*(m.z[i]/m.H))/erf(np.sqrt(Pe/2.))) * quad(f2,0.,1.)[0])
+    return T

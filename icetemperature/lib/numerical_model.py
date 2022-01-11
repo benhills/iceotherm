@@ -41,22 +41,37 @@ class ice_temperature():
         - Melt
     """
 
-    def __init__(self,const=const):
+    def __init__(self,Ts=-50.,H=2850.,adot=0.1,qgeo=0.050,p=1000.,
+                 eps_xy=None,
+                 nz=101,const=const):
         """
         Initialize the model with constant terms
+
+        Parameters
+        ----------
+        Ts:         float,  Surface Temperature (C)
+        H:          float,  Ice thickness (m)
+        adot:       float,  Accumulation rate (m/yr)
+        qgeo:       float,  Geothermal Flux (W/m2)
+        p:          float,  Lliboutry Shape Factor
+        nz:         int,    Number of layers in the ice column
+        const:      class,  Constants
         """
 
         ### Numerical Inputs ###
-        self.nz=101                     # Number of layers in the ice column
         self.tol=1e-5                   # Convergence criteria
+        self.nz=nz                      # Number of layers in the ice column
 
         ### Boundary Constraints ###
-        self.Ts = -50.                  # Surface Temperature   [C]
-        self.qgeo = .050                # Geothermal flux       [W/m2]
-        self.H = 2850.                  # Ice thickness         [m]
-        self.adot = .1/const.spy        # Accumulation rate     [m/s]
+        self.Ts = Ts                    # Surface Temperature   [C]
+        self.qgeo = qgeo                # Geothermal flux       [W/m2]
+        self.H = H                      # Ice thickness         [m]
+        self.adot = adot/const.spy      # Accumulation rate     [m/s]
         self.gamma = 1.532              # Exponent for vertical velocity
-        self.p = 0.                     # Lliboutry shape factor for vertical velocity (large p is ~linear)
+        self.p = p                      # Lliboutry shape factor for vertical velocity (large p is ~linear)
+
+        ### Internal Constraints ###
+        self.eps_xy = eps_xy            # Plane Strain rate [s-1]
 
         ### Ice Properties ###
         self.beta = const.beta                  # Melting point depression (default to const.beta)  [K/Pa]
@@ -82,6 +97,12 @@ class ice_temperature():
         self.Mcum = 0.                  # Cumulative melt                       [m]
         self.Mcum_max = None            # Max Cumulative melt for a capped lake [m]
 
+        ### Discretize the vertical coordinate ###
+        self.z = np.linspace(0,self.H,self.nz)
+        self.dz = np.mean(np.gradient(self.z))      # Vertical step
+        self.P = const.rho*const.g*(self.H-self.z)  # Pressure
+        self.pmp = self.P*self.beta                # Pressure melting
+
         ### Empty Time Array as Default ###
         self.ts=[]
 
@@ -90,7 +111,7 @@ class ice_temperature():
 
     # ------------------------------------------------------------------------------------------
 
-    def initial_conditions(self,const=const,analytical='Robin'):
+    def initial_conditions(self,const=const,analytical=Robin_T):
         """
         Define the initial ice column properties using an analytical solution
         with paramaters from the beginning of the time series.
@@ -99,32 +120,20 @@ class ice_temperature():
         # get the initial surface temperature and downward velocity for input to analytical solution
         if hasattr(self.adot,"__len__"):
             v_z_surf = self.adot[0]
-            T_surf = self.Ts[0]
         else:
             v_z_surf = self.adot
-            T_surf = self.Ts
 
         # initial temperature from analytical solution
-        if analytical == 'Robin':
-            self.z,self.T = Robin_T(T_surf,self.qgeo,self.H,
-                    v_z_surf,const=const,nz=self.nz)
-        elif analytical == 'Rezvan':
-            self.z,self.T = Rezvan_T(T_surf,self.qgeo,self.H,
-                    v_z_surf,const=const,nz=self.nz,gamma=self.gamma,gamma_plus=False)
+        self.T = analytical(self)
 
         # vertical velocity
-        if self.p == 0.:
+        if self.p is None:
             # by exponent, gamma
             self.v_z = v_z_surf*(self.z/self.H)**self.gamma
         else:
             # by shape factor, p
             zeta = (1.-(self.z/self.H))
             self.v_z = v_z_surf*(1.-((self.p+2.)/(self.p+1.))*zeta+(1./(self.p+1.))*zeta**(self.p+2.))
-
-        ### Discretize the vertical coordinate ###
-        self.dz = np.mean(np.gradient(self.z))      # Vertical step
-        self.P = const.rho*const.g*(self.H-self.z)  # Pressure
-        self.pmp = self.P*self.beta                # Pressure melting
 
 
     def source_terms(self,i=0,const=const,eps_xy=None,A_xy=None):
@@ -269,7 +278,7 @@ class ice_temperature():
             if 'temp-dependent' in self.flags:
                 diffusivity_update(self)
             if 'weertman_vel' in self.flags and steady_iter%1000==0:
-                if A_xy is not None:
+                if A_xy == 'full':
                     A_xy = rate_factor(self.T,z=self.z)
                 self.source_terms(eps_xy=eps_xy,A_xy=A_xy)
                 self.stencil(self.dt)
