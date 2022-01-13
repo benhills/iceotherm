@@ -42,7 +42,7 @@ class ice_temperature():
     """
 
     def __init__(self,Ts=-50.,H=2850.,adot=0.1,qgeo=0.050,p=1000.,
-                 eps_xy=None,
+                 eps_xy=0.,
                  nz=101,const=const):
         """
         Initialize the model with constant terms
@@ -54,6 +54,7 @@ class ice_temperature():
         adot:       float,  Accumulation rate (m/yr)
         qgeo:       float,  Geothermal Flux (W/m2)
         p:          float,  Lliboutry Shape Factor
+        eps_xy:     float,  Plane Strain Rate (yr-1)
         nz:         int,    Number of layers in the ice column
         const:      class,  Constants
         """
@@ -67,11 +68,11 @@ class ice_temperature():
         self.qgeo = qgeo                # Geothermal flux       [W/m2]
         self.H = H                      # Ice thickness         [m]
         self.adot = adot/const.spy      # Accumulation rate     [m/s]
-        self.gamma = 1.532              # Exponent for vertical velocity
+        self.gamma = None               # Exponent for vertical velocity; if None calculate using Rezvanbehbahani (2019) eq. 19
         self.p = p                      # Lliboutry shape factor for vertical velocity (large p is ~linear)
 
         ### Internal Constraints ###
-        self.eps_xy = eps_xy            # Plane Strain rate [s-1]
+        self.eps_xy = eps_xy/const.spy  # Plane Strain rate [s-1]
 
         ### Ice Properties ###
         self.beta = const.beta                  # Melting point depression (default to const.beta)  [K/Pa]
@@ -117,63 +118,46 @@ class ice_temperature():
         with paramaters from the beginning of the time series.
         """
 
-        # get the initial surface temperature and downward velocity for input to analytical solution
-        if hasattr(self.adot,"__len__"):
-            v_z_surf = self.adot[0]
-        else:
-            v_z_surf = self.adot
-
         # initial temperature from analytical solution
         self.T = analytical(self)
 
         # vertical velocity
         if self.p is None:
             # by exponent, gamma
-            self.v_z = v_z_surf*(self.z/self.H)**self.gamma
+            self.v_z = self.adot*(self.z/self.H)**self.gamma
         else:
             # by shape factor, p
             zeta = (1.-(self.z/self.H))
-            self.v_z = v_z_surf*(1.-((self.p+2.)/(self.p+1.))*zeta+(1./(self.p+1.))*zeta**(self.p+2.))
+            self.v_z = self.adot*(1.-((self.p+2.)/(self.p+1.))*zeta+(1./(self.p+1.))*zeta**(self.p+2.))
 
 
-    def source_terms(self,i=0,const=const,eps_xy=None,A_xy=None):
+    def source_terms(self,i=0,const=const):
         """
         Heat sources from strain heating and downstream advection (this is typically a heat sink)
         """
 
-        ### Strain Heat Production ###
-
         # Shear Stress by Lamellar Flow (van der Veen section 4.2)
         tau_xz = const.rho*const.g*(self.H-self.z)*abs(self.dS)     # [Pa]
-        # Calculate heat sources, Q
-        if self.Udef == 0.:
-            eps_xz = np.zeros_like(tau_xz)
-            Q = np.zeros_like(tau_xz)
-        else:
+        # Sliding friction heat production
+        self.tau_b = tau_xz[0]                          # [Pa]
+        self.q_b = self.tau_b*self.Uslide               # [W/m2]
+
+        # Initialize source term at zeros
+        eps_xz = np.zeros_like(tau_xz)
+        self.Sdot = np.zeros_like(tau_xz)
+
+        ### Vertical Shear Heat Production ###
+        if 'vertical_shear' in self.flags:
             # Calculate the rate_factor
             A = rate_factor(self.T,z=self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
             eps_xz = (A*tau_xz**const.n)                # [/s]
             # strain heat term
             Q = 2.*(eps_xz*tau_xz)/(self.rho*self.Cp)   # [K/s]
-        # Sliding friction heat production
-        self.tau_b = tau_xz[0]                          # [Pa]
-        self.q_b = self.tau_b*self.Uslide               # [W/m2]
+            self.Sdot += Q
 
-        ### Advection Term ###
-
-        if 'weertman_vel' in self.flags:
-            v_x = self.Uslide + np.insert(cumtrapz(eps_xz,self.z),0,0)    # Horizontal velocity
-            # Horizontal Temperature Gradients, Weertman (1968) eq. 6b
-            dTdx = self.dTs + (self.T-self.Ts[i])/2.*(1./self.H*self.dH-(1./self.adot[i])*self.da)
-            # Final Source Term
-            self.Sdot = Q - v_x*dTdx
-        else:
-            self.Sdot = Q
-
-        ### Plane Strain ###
-
-        if eps_xy is not None:
+        ### Plane Strain Heat Production ###
+        if 'plane_strain' in self.flags:
             # Calculate the rate_factor
             if A_xy is None:
                 A = rate_factor(self.pmp,z=self.z,const=const)
@@ -183,6 +167,14 @@ class ice_temperature():
             Q_xy = 2.*(eps_xy*tau_xy)/(self.rho*self.Cp)
             # Add to the source term
             self.Sdot += Q_xy
+
+        ### Advective Heat Sink ###
+        if 'long_advection' in self.flags:
+            v_x = self.Uslide + np.insert(cumtrapz(eps_xz,self.z),0,0)    # Horizontal velocity
+            # Horizontal Temperature Gradients, Weertman (1968) eq. 6b
+            dTdx = self.dTs + (self.T-self.Ts[i])/2.*(1./self.H*self.dH-(1./self.adot[i])*self.da)
+            # Final Source Term
+            self.Sdot -= v_x*dTdx
 
     # ------------------------------------------------------------------------------------------
 
@@ -252,7 +244,7 @@ class ice_temperature():
 
     # ------------------------------------------------------------------------------------------
 
-    def run_to_steady_state(self,const=const,eps_xy=None,A_xy=None):
+    def numerical_to_steady_state(self,const=const):
         """
         Run the initial conditions until stable within self.tol
         """
@@ -269,7 +261,7 @@ class ice_temperature():
         if 'verbose' in self.flags:
             print('Running model to steady state')
         # Continue to iterate until the updated temperature profile is all within self.tol
-        while any(abs(self.T[1:]-T_new[1:])>self.tol):
+        while steady_iter < 1000 or any(abs(self.T[1:]-T_new[1:])>self.tol):
             # Print output
             if 'verbose' in self.flags and steady_iter%1000==0:
                 print('.',end='')
@@ -277,7 +269,7 @@ class ice_temperature():
             # Update the thermal diffusivity based on the new temperature profile
             if 'temp-dependent' in self.flags:
                 diffusivity_update(self)
-            if 'weertman_vel' in self.flags and steady_iter%1000==0:
+            if 'long_advection' in self.flags and steady_iter%1000==0:
                 if A_xy == 'full':
                     A_xy = rate_factor(self.T,z=self.z)
                 self.source_terms(eps_xy=eps_xy,A_xy=A_xy)
@@ -289,7 +281,7 @@ class ice_temperature():
             # Update the iteration counter
             steady_iter += 1
         self.T = T_new.copy()
-        # Print one more line so that it breaks the '...'
+        # Print one more line to break the '...'
         if 'verbose' in self.flags:
             print('')
 
@@ -300,7 +292,7 @@ class ice_temperature():
 
     # ------------------------------------------------------------------------------------------
 
-    def run(self,const=const):
+    def numerical_transient(self,const=const):
         """
         Non-Steady Model
         Run the finite-difference model as it has been set up through the other functions.

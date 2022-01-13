@@ -71,7 +71,6 @@ def Rezvan_T(m,const=constants(),
              rate_factor=rate_factor,
              T_ratefactor=-10.,
              dHdx=0.,tau_dx=0.,
-             gamma=1.397,gamma_plus=True,
              verbose=False):
     """
     1-D Analytical temperature profile from Rezvanbehbahani et al. (2019)
@@ -92,7 +91,6 @@ def Rezvan_T(m,const=constants(),
     T_ratefactor:   float, Temperature input to rate factor function (C)
     dHdx:       float, Surface slope to calculate tau_dx
     tau_dx:     float, driving stress input directly (Pa)
-    gamma:      float, exponent on the vertical velocity
     gamma_plus: bool, optional to determine gama_plus from the logarithmic regression with Pe Number
     verbose: bool, option to print all output
 
@@ -103,14 +101,14 @@ def Rezvan_T(m,const=constants(),
 
     # Thermal diffusivity
     alpha = const.k/(const.rho*const.Cp)
-    if gamma_plus:
+    if m.gamma is None:
         # Solve for gamma using the logarithmic regression with the Pe number
         Pe = m.adot*m.H/alpha
         if Pe < 5. and verbose:
             print('Pe:',Pe)
             print('The gamma_plus fit is not well-adjusted for low Pe numbers.')
         # Rezvanbehbahani (2019) eq. (19)
-        gamma = 1.39+.044*np.log(Pe)
+        m.gamma = 1.39+.044*np.log(Pe)
     if dHdx != 0. and tau_dx == 0.:
         # driving stress Nye (1952)
         tau_dx = const.rho*const.g*H*abs(dHdx)
@@ -121,14 +119,14 @@ def Rezvan_T(m,const=constants(),
         qgeo_s = (2./5.)*A*m.H*tau_dx**4.
         qgeo = m.qgeo + qgeo_s
     # Rezvanbehbahani (2019) eq. (19)
-    lamb = m.adot/(alpha*m.H**gamma)
-    phi = -lamb/(gamma+1)
+    lamb = m.adot/(alpha*m.H**m.gamma)
+    phi = -lamb/(m.gamma+1)
 
     # Rezvanbehbahani (2019) eq. (17)
-    Γ_1 = γincc(1/(1+gamma),-phi*m.z**(gamma+1))*γ(1/(1+gamma))
-    Γ_2 = γincc(1/(1+gamma),-phi*m.H**(gamma+1))*γ(1/(1+gamma))
+    Γ_1 = γincc(1/(1+m.gamma),-phi*m.z**(m.gamma+1))*γ(1/(1+m.gamma))
+    Γ_2 = γincc(1/(1+m.gamma),-phi*m.H**(m.gamma+1))*γ(1/(1+m.gamma))
     term2 = Γ_1-Γ_2
-    T = m.Ts + m.qgeo*(-phi)**(-1./(gamma+1.))/(const.k*(gamma+1))*term2
+    T = m.Ts + m.qgeo*(-phi)**(-1./(m.gamma+1.))/(const.k*(m.gamma+1))*term2
     return T
 
 # ---------------------------------------------------
