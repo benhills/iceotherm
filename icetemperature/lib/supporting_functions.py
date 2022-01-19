@@ -38,10 +38,11 @@ def update_time(self,i):
     Update variables to current time
     """
     self.Udef,self.Uslide = self.Udefs[i],self.Uslides[i]   # Update the velocity terms from input
-    self.T[-1] = self.Ts[i]                                 # Set surface temperature condition from input
+    self.Ts,self.adot = self.Ts_s[i],self.adot_s[i]   # Update the velocity terms from input
+    self.T[-1] = self.Ts                                 # Set surface temperature condition from input
     if self.Hs is not None:
         thickness_update(self,self.Hs[i]) # thickness update
-    v_z_surf = self.adot[i]      # set vertical velocity
+    v_z_surf = self.adot      # set vertical velocity
     # add extra term from Weertman if desired
     if 'weertman_vel' in self.flags:
         v_z_surf += self.Udef*self.dH
@@ -61,7 +62,7 @@ def update_time(self,i):
     self.B[0,:] = 0.  # Neumann at bed
     self.B[-1,:] = 0. # Dirichlet at surface
     # Source
-    self.source_terms(i=i)
+    self.source_terms()
     self.Tgrad = -(self.qgeo+self.q_b)/self.k[0]             # Temperature gradient at bed
     self.Sdot[0] += -2*self.dz*self.Tgrad*self.diff[0]/self.dt # update boundaries on heat source vector
     self.Sdot[-1] = 0.

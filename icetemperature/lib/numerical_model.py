@@ -42,8 +42,9 @@ class ice_temperature():
     """
 
     def __init__(self,Ts=-50.,H=2850.,adot=0.1,qgeo=0.050,p=1000.,
-                 eps_xy=0.,
-                 nz=101,const=const):
+                 dS=0.,dTs=0.,dH=0.,da=0.,
+                 eps_xy=0.,A_xy='full',
+                 nz=101,tol=1e-5,const=const):
         """
         Initialize the model with constant terms
 
@@ -54,13 +55,14 @@ class ice_temperature():
         adot:       float,  Accumulation rate (m/yr)
         qgeo:       float,  Geothermal Flux (W/m2)
         p:          float,  Lliboutry Shape Factor
+        dS:         float,  Surface slope (degrees)
         eps_xy:     float,  Plane Strain Rate (yr-1)
         nz:         int,    Number of layers in the ice column
         const:      class,  Constants
         """
 
         ### Numerical Inputs ###
-        self.tol=1e-5                   # Convergence criteria
+        self.tol = tol                  # Convergence criteria
         self.nz=nz                      # Number of layers in the ice column
 
         ### Boundary Constraints ###
@@ -73,6 +75,7 @@ class ice_temperature():
 
         ### Internal Constraints ###
         self.eps_xy = eps_xy/const.spy  # Plane Strain rate [s-1]
+        self.A_xy_init = A_xy           # Rate factor for plane strain heat source
 
         ### Ice Properties ###
         self.beta = const.beta                  # Melting point depression (default to const.beta)  [K/Pa]
@@ -81,10 +84,10 @@ class ice_temperature():
         self.rho = const.rho*np.ones(self.nz)   # Density (default to const.rho)                    [kg/m3]
 
         ### Gradients ###
-        self.dS = np.sin(.2*np.pi/180.) # Surface gradient in x/y directions, used for deformational flow calculation [m/m]
-        self.dTs = 0.                   # Change in air temperature over distance x/y   [C/m]
-        self.dH = 0.                    # Thickness gradient in x/y directions          [m/m]
-        self.da = 0.                    # Accumulation gradient in x/y directions       [m/yr/m]
+        self.dS = np.sin(dS*np.pi/180.) # Surface gradient in x/y directions, used for deformational flow calculation [m/m]
+        self.dTs = dTs                  # Change in air temperature over distance x/y   [C/m]
+        self.dH = dH                    # Thickness gradient in x/y directions          [m/m]
+        self.da = da/const.spy          # Accumulation gradient in x/y directions       [m/yr/m]
 
         ### Velocity Terms ###
         self.Udef = 0.                  # Deformational velocity    [m/s]
@@ -131,7 +134,7 @@ class ice_temperature():
             self.v_z = self.adot*(1.-((self.p+2.)/(self.p+1.))*zeta+(1./(self.p+1.))*zeta**(self.p+2.))
 
 
-    def source_terms(self,i=0,const=const):
+    def source_terms(self,const=const):
         """
         Heat sources from strain heating and downstream advection (this is typically a heat sink)
         """
@@ -149,7 +152,7 @@ class ice_temperature():
         ### Vertical Shear Heat Production ###
         if 'vertical_shear' in self.flags:
             # Calculate the rate_factor
-            A = rate_factor(self.T,z=self.z,const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
+            A = rate_factor(self.T,d=(self.H-self.z),const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
             eps_xz = (A*tau_xz**const.n)                # [/s]
             # strain heat term
@@ -159,12 +162,14 @@ class ice_temperature():
         ### Plane Strain Heat Production ###
         if 'plane_strain' in self.flags:
             # Calculate the rate_factor
-            if A_xy is None:
-                A = rate_factor(self.pmp,z=self.z,const=const)
+            if self.A_xy_init == 'full':
+                self.A_xy = rate_factor(self.T,d=(self.H-self.z),const=const)
+            elif self.A_xy_init == 'temperate':
+                self.A_xy = rate_factor(self.pmp,d=(self.H-self.z),const=const)
             else:
-                A = A_xy
-            tau_xy = (eps_xy/(2.*A))**(1./const.n)
-            Q_xy = 2.*(eps_xy*tau_xy)/(self.rho*self.Cp)
+                self.A_xy = self.A_xy_init
+            tau_xy = (self.eps_xy/self.A_xy)**(1./const.n)
+            Q_xy = (self.eps_xy*tau_xy)/(self.rho*self.Cp)
             # Add to the source term
             self.Sdot += Q_xy
 
@@ -172,7 +177,7 @@ class ice_temperature():
         if 'long_advection' in self.flags:
             v_x = self.Uslide + np.insert(cumtrapz(eps_xz,self.z),0,0)    # Horizontal velocity
             # Horizontal Temperature Gradients, Weertman (1968) eq. 6b
-            dTdx = self.dTs + (self.T-self.Ts[i])/2.*(1./self.H*self.dH-(1./self.adot[i])*self.da)
+            dTdx = self.dTs + (self.T-self.Ts)/2. * (self.dH/self.H - self.da/self.adot)
             # Final Source Term
             self.Sdot -= v_x*dTdx
 
@@ -270,9 +275,7 @@ class ice_temperature():
             if 'temp-dependent' in self.flags:
                 diffusivity_update(self)
             if 'long_advection' in self.flags and steady_iter%1000==0:
-                if A_xy == 'full':
-                    A_xy = rate_factor(self.T,z=self.z)
-                self.source_terms(eps_xy=eps_xy,A_xy=A_xy)
+                self.source_terms()
                 self.stencil(self.dt)
             # Calculate the updated temperature profile using the stencils and heat sources
             T_new = self.A*self.T - self.B*self.T + self.dt*self.Sdot
