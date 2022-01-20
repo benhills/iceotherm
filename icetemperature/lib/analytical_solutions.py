@@ -269,7 +269,7 @@ def Perol_T(m,const=constants(),
     # Peclet Number
     Pe = m.adot*m.H/(k/(const.rho*Cp))
     # Strain Heating
-    S = 2.*A**(-1./const.n)*(m.eps_xy/2.)**((const.n+1.)/const.n)
+    S = 2.*A**(-1./const.n)*(m.eps_xy)**((const.n+1.)/const.n)
     if verbose:
         print('Perol; A:',A, 'S:',S)
     # Empty Array for Temperatures, then loop through all z's

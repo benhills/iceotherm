@@ -154,7 +154,7 @@ class ice_temperature():
             # Calculate the rate_factor
             A = rate_factor(self.T,d=(self.H-self.z),const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
-            eps_xz = (A*tau_xz**const.n)                # [/s]
+            eps_xz = (A*tau_xz**const.n)/const.spy                # [/s]
             # strain heat term
             Q = 2.*(eps_xz*tau_xz)/(self.rho*self.Cp)   # [K/s]
             self.Sdot += Q
@@ -169,7 +169,7 @@ class ice_temperature():
             else:
                 self.A_xy = self.A_xy_init
             tau_xy = (self.eps_xy/self.A_xy)**(1./const.n)
-            Q_xy = (self.eps_xy*tau_xy)/(self.rho*self.Cp)
+            Q_xy = 2.*(self.eps_xy*tau_xy)/(self.rho*self.Cp)
             # Add to the source term
             self.Sdot += Q_xy
 
