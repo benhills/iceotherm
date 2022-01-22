@@ -45,22 +45,21 @@ class TestNumericalFunctions(unittest.TestCase):
         m.initial_conditions()
         m.source_terms()
         m.stencil(dt=1.*const.spy)
-        m.run_to_steady_state()
+        m.numerical_to_steady_state()
 
     def test_run(self):
-        m = ice_temperature()
         ntsteps = 100
         adot = .1
         Ts = -25.
         H = 1000.
-        m.adot = np.array([adot/const.spy]*ntsteps)
-        m.Ts = np.array([Ts]*ntsteps)
-        m.H = H
+        m = ice_temperature(Ts=Ts,adot=adot,H=H)
         m.ts = np.arange(ntsteps)*const.spy
+        m.Ts_s = [m.Ts]*ntsteps
+        m.adot_s = [m.adot]*ntsteps
         m.initial_conditions()
         m.source_terms()
         m.stencil()
-        m.run()
+        m.numerical_transient()
 
     def test_temp_dependency(self):
         m = ice_temperature()

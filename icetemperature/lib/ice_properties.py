@@ -60,7 +60,7 @@ def heat_capacity(T,const=constants()):
 # ---------------------------------------------------
 
 def rate_factor(T,const=constants(),
-             d=None,pmp=0.,
+             z=None,H=None,pmp=0.,
              tau_xz=None,v_surf=None):
     """
     Rate Facor function for ice viscosity, A(T)
@@ -75,8 +75,10 @@ def rate_factor(T,const=constants(),
         Ice Temperature (C)
     const:  class, optional
         Constants
-    d:      array, optional
-        Depth (m)
+    z:      array, optional
+        Height (m)
+    H:      float, optional
+        Ice Thickness (m)
     pmp:      float, optional
         Pressure-Melting Point (C)
     tau_xz: array, optional
@@ -96,26 +98,25 @@ def rate_factor(T,const=constants(),
     elif T>-10.:
         Qact = const.Qplus
     # Overburden pressure
-    if d is not None:
-        pmp = const.rho*const.g*d*const.beta
+    if z is not None:
+        pmp = const.rho*const.g*(H-z)*const.beta
 
     if v_surf is None:
         # rate factor Cuffey and Paterson (2010) equation 3.35
         A = const.Astar*np.exp(-(Qact/const.R)*((1./(T+const.T0-pmp))-(1./(const.Tstar-pmp))))
     else:
         # Get the final coefficient value
-        res = minimize(surf_vel_opt, 1, args=(T,d,pmp,Qact,tau_xz,v_surf))
+        res = minimize(surf_vel_opt, 1, args=(T,z,pmp,Qact,tau_xz,v_surf))
         # C was scaled for appropriate stepping of the minimization function, scale back
-        C_fin = res['x']*1e-13
+        C_fin = res['x']*const.Astar
         # rate factor Cuffey and Paterson (2010) equation 3.35
         A = C_fin*np.exp(-(Qact/const.R)*((1./(T+const.T0-pmp))-(1./(const.Tstar-pmp))))
-        # A is optimized to a m/yr velocity so bring the dimensions back to seconds
-        A /= const.spy
     return A
 
 # ---------------------------------------------------
 
-def surf_vel_opt(C,T,d,pmp,Qact,tau_xz,v_surf,const=constants()):
+def surf_vel_opt(C,T,z,pmp,Qact,tau_xz,v_surf,
+                 const=constants()):
     """
     Optimize the viscosity profile using the known surface velocity
 
@@ -125,8 +126,8 @@ def surf_vel_opt(C,T,d,pmp,Qact,tau_xz,v_surf,const=constants()):
         Rate factor coefficient (multiplier)
     T:      array
         Ice Temperature (C)
-    d:      array
-        Depth (m)
+    z:      array
+        Height (m)
     pmp:      float, optional
         Pressure-Melting Point (C)
     Qact:   float
@@ -144,14 +145,14 @@ def surf_vel_opt(C,T,d,pmp,Qact,tau_xz,v_surf,const=constants()):
         cost to be minimized
     """
     # Change the coefficient so that the minimization function takes appropriate steps
-    C_opt = C*1e-13
+    C_opt = C*const.Astar
     # rate factor Cuffey and Paterson (2010) equation 3.35
     A = C_opt*np.exp(-(Qact/const.R)*((1./(T+const.T0-pmp))-(1/(const.Tstar-pmp))))
     # Shear Strain Rate, Weertman (1968) eq. 7
-    eps_xz = A*tau_xz**const.n/(const.spy**const.n)
+    eps_xz = A*tau_xz**const.n
     Q = 2.*(eps_xz*tau_xz)
-    # Integrate the strain rate to get the surface velocity
-    Q_opt = np.trapz(Q,d)
+    # Integrate the heat source to get total energy input
+    Q_opt = np.trapz(Q,z)
     # Optimize to conserve energy
-    energy_optimizer = abs(Q_opt-v_surf*tau_xz[0])*const.spy
+    energy_optimizer = abs(Q_opt-v_surf*tau_xz[0])/const.Astar
     return energy_optimizer

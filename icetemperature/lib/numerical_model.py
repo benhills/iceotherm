@@ -152,7 +152,7 @@ class ice_temperature():
         ### Vertical Shear Heat Production ###
         if 'vertical_shear' in self.flags:
             # Calculate the rate_factor
-            A = rate_factor(self.T,d=(self.H-self.z),const=const,tau_xz=tau_xz,v_surf=self.Udef*const.spy)   # [/s/Pa3]
+            A = rate_factor(self.T,d=(self.H-self.z),const=const,tau_xz=tau_xz,v_surf=self.Udef)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
             eps_xz = (A*tau_xz**const.n)/const.spy                # [/s]
             # strain heat term

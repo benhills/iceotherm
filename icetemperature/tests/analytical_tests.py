@@ -18,6 +18,7 @@ import unittest
 from constants import constants
 const = constants()
 from analytical_solutions import *
+from numerical_model import ice_temperature
 
 class TestAnalyticalSolutions(unittest.TestCase):
 
@@ -26,12 +27,13 @@ class TestAnalyticalSolutions(unittest.TestCase):
         qgeo = 0.05
         H = 2000.
         adot = .1
-        z,T = Robin_T(Ts,qgeo,H,adot,verbose=True)
+        m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
+        T = Robin_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))
 
-        qgeo = 0.2
-        z,T = Robin_T(Ts,qgeo,H,adot)
+        m.qgeo = 0.2
+        T = Robin_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<1.))
 
@@ -40,7 +42,8 @@ class TestAnalyticalSolutions(unittest.TestCase):
         qgeo = 0.05
         H = 2000.
         adot = .1
-        z,T = Rezvan_T(Ts,qgeo,H,adot,verbose=True)
+        m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
+        T = Rezvan_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))
 
@@ -48,12 +51,14 @@ class TestAnalyticalSolutions(unittest.TestCase):
         Ts = -50.
         H = 1000.
         adot = .1
-        eps_xy = 3e-09
-        z,T = Meyer_T(Ts,H,adot,eps_xy,verbose=True)
+        eps_xy = 0.01
+        m = ice_temperature(Ts=Ts,H=H,adot=adot,eps_xy=eps_xy)
+        T = Meyer_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=0.))
 
-        z,T = Meyer_T(Ts,H,adot,0.,verbose=True)
+        m.eps_xy = 0.
+        T = Meyer_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=0.))
 
@@ -61,12 +66,14 @@ class TestAnalyticalSolutions(unittest.TestCase):
         Ts = -50.
         H = 1000.
         adot = .1
-        eps_xy = 3e-09
-        z,T = Perol_T(Ts,H,adot,eps_xy,verbose=True)
+        eps_xy = 0.01
+        m = ice_temperature(Ts=Ts,H=H,adot=adot,eps_xy=eps_xy)
+        T = Perol_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=50.))
 
-        z,T = Perol_T(Ts,H,adot,0.,verbose=True)
+        m.eps_xy = 0.
+        T = Perol_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=0.))
 
