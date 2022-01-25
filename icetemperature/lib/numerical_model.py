@@ -152,9 +152,9 @@ class ice_temperature():
         ### Vertical Shear Heat Production ###
         if 'vertical_shear' in self.flags:
             # Calculate the rate_factor
-            A = rate_factor(self.T,d=(self.H-self.z),const=const,tau_xz=tau_xz,v_surf=self.Udef)   # [/s/Pa3]
+            A = rate_factor(self.T,z=self.z,H=self.H,const=const,tau_xz=tau_xz,v_surf=self.Udef)   # [/s/Pa3]
             # Strain rate, Weertman (1968) eq. 7
-            eps_xz = (A*tau_xz**const.n)/const.spy                # [/s]
+            eps_xz = (A*tau_xz**const.n)                # [/s]
             # strain heat term
             Q = 2.*(eps_xz*tau_xz)/(self.rho*self.Cp)   # [K/s]
             self.Sdot += Q
@@ -163,9 +163,9 @@ class ice_temperature():
         if 'plane_strain' in self.flags:
             # Calculate the rate_factor
             if self.A_xy_init == 'full':
-                self.A_xy = rate_factor(self.T,d=(self.H-self.z),const=const)
+                self.A_xy = rate_factor(self.T,z=self.z,H=self.H,const=const)
             elif self.A_xy_init == 'temperate':
-                self.A_xy = rate_factor(self.pmp,d=(self.H-self.z),const=const)
+                self.A_xy = rate_factor(self.pmp,z=self.z,H=self.H,const=const)
             else:
                 self.A_xy = self.A_xy_init
             tau_xy = (self.eps_xy/self.A_xy)**(1./const.n)
