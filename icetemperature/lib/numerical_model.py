@@ -295,7 +295,7 @@ class ice_temperature():
 
     # ------------------------------------------------------------------------------------------
 
-    def numerical_transient(self,const=const):
+    def numerical_transient(self,const=const,*args,**kwargs):
         """
         Non-Steady Model
         Run the finite-difference model as it has been set up through the other functions.
@@ -323,7 +323,7 @@ class ice_temperature():
         for i in range(len(self.ts)):
 
             ### Print and output
-            print_and_save(self,i)
+            print_and_save(self,i,*args,**kwargs)
 
             ### Update to current time
             update_time(self,i)
