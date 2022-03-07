@@ -70,9 +70,11 @@ def Robin_T(m,T_bulk=None,const=constants(),melt=True,verbose=False):
         M = (Tb_grad + m.qgeo/k)*k/const.L
         if verbose:
             print('Melting at the bed: ', np.round(M*const.spy/const.rho*1000.,2), 'mm/year')
+    else:
+        M = 0.
     if verbose:
         print('Finished Robin Solution for analytic temperature profile.\n')
-    return T
+    return T,M
 
 # ---------------------------------------------------
 
