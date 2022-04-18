@@ -122,7 +122,10 @@ class ice_temperature():
         """
 
         # initial temperature from analytical solution
-        self.T = analytical(self)
+        if analytical==Robin_T:
+            self.T,M = analytical(self)
+        else:
+            self.T = analytical(self)
 
         # vertical velocity
         if self.p is None:
