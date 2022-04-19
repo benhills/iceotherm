@@ -43,7 +43,7 @@ class TestIceProperties(unittest.TestCase):
         adot = .1
         v_surf = 10./const.spy
         m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
-        T = Robin_T(m)
+        T,M = Robin_T(m)
 
         A = rate_factor(T,const=const)
         self.assertTrue(A[0]>1e-28)

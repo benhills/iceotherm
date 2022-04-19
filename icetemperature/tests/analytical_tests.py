@@ -28,12 +28,12 @@ class TestAnalyticalSolutions(unittest.TestCase):
         H = 2000.
         adot = .1
         m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
-        T = Robin_T(m)
+        T,M = Robin_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))
 
         m.qgeo = 0.2
-        T = Robin_T(m)
+        T,M = Robin_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<1.))
 
