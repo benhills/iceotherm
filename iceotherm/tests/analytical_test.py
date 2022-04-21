@@ -32,8 +32,13 @@ class TestAnalyticalSolutions(unittest.TestCase):
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))
 
+        m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
+        T,M = Robin_T(m,T_bulk='average')
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<0.))
+
         m.qgeo = 0.2
-        T,M = Robin_T(m)
+        T,M = Robin_T(m,verbose=True)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<1.))
 
@@ -44,7 +49,11 @@ class TestAnalyticalSolutions(unittest.TestCase):
         adot = .1
         m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
         m.gamma = None
-        T = Rezvan_T(m)
+        T = Rezvan_T(m,T_bulk=None)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<0.))
+
+        T = Rezvan_T(m,T_bulk='average',verbose=True)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))
 
@@ -63,6 +72,10 @@ class TestAnalyticalSolutions(unittest.TestCase):
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=0.))
 
+        T = Meyer_T(m,T_bulk=None,verbose=True)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=0.))
+
     def test_perol(self):
         Ts = -50.
         H = 1000.
@@ -75,6 +88,10 @@ class TestAnalyticalSolutions(unittest.TestCase):
 
         m.eps_xy = 0.
         T = Perol_T(m)
+        self.assertTrue(np.all(T>-51.))
+        self.assertTrue(np.all(T<=0.))
+
+        T = Perol_T(m,T_bulk=None,verbose=True)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<=0.))
 
