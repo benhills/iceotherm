@@ -1,5 +1,5 @@
 name: iceotherm workflow including Codecov
-on: [push, pull-request]
+on: [push]
 
 jobs:
   run:
@@ -26,7 +26,7 @@ jobs:
       run: |
         pip install pytest
         pip install pytest-cov
-        pytest --cov=./iceotherm --cov-report=xml --omit=./iceotherm/tests/*
+        pytest --cov=./iceotherm/lib --cov-report=xml ./iceotherm/tests/*
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
