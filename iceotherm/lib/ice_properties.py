@@ -10,7 +10,7 @@ April 28, 2020
 
 import numpy as np
 from scipy.optimize import minimize
-from constants import constants
+from .constants import constants
 
 # ---------------------------------------------------
 

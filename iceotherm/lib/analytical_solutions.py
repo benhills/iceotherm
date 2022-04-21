@@ -14,9 +14,9 @@ from scipy.special import gammaincc as γincc
 from scipy.special import erf
 from scipy.integrate import quad
 from scipy.special import lambertw
-from constants import constants
+from .constants import constants
 
-from ice_properties import *
+from .ice_properties import *
 
 def Robin_T(m,T_bulk=None,const=constants(),melt=True,verbose=False):
     """
@@ -31,17 +31,18 @@ def Robin_T(m,T_bulk=None,const=constants(),melt=True,verbose=False):
 
     Parameters
     ----------
-    m:      class, Model
+    m:          class, Model
     T_bulk      float, Temperature input to the rate factor function, A(T)
-    const:  class,  Constants
-    melt:   bool,   Choice to allow melting, when true the bed temperature
-                    is locked at the pressure melting point and melt rates
-                    are calculated
-    verbose: bool, option to print all output
+    const:      class,  Constants
+    melt:       bool,   Choice to allow melting, when true the bed temperature
+                        is locked at the pressure melting point and melt rates
+                        are calculated
+    verbose:    bool, option to print all output
 
     Output
     ----------
-    T:      1-D array,  Analytic solution for ice temperature
+    T:          1-D array,  Analytic solution for ice temperature
+    M:          float, Melt rate
     """
 
     # Thermal constants
@@ -81,7 +82,7 @@ def Robin_T(m,T_bulk=None,const=constants(),melt=True,verbose=False):
 def Rezvan_T(m,const=constants(),rate_factor=rate_factor,T_bulk=-10.,tau_dx=0.,verbose=False):
     """
     1-D Analytical temperature profile from Rezvanbehbahani et al. (2019)
-    Main improvement from the Robin (1955) solution is the nonlinear velocity profile
+    Main improvement from the Robin (1955) solution is the nonlinear vertical velocity profile
 
     Assumptions:
         1) no horizontal advection
@@ -92,17 +93,17 @@ def Rezvan_T(m,const=constants(),rate_factor=rate_factor,T_bulk=-10.,tau_dx=0.,v
 
     Parameters
     ----------
-    m:      class, Model
-    const:  class,  Constants
-    rate_factor:     function, to calculate the rate factor from Glen's Flow Law
-    T_bulk:   float, Temperature input to rate factor function (C)
-    tau_dx:     float, driving stress input directly (Pa)
-    gamma_plus: bool, optional to determine gama_plus from the logarithmic regression with Pe Number
-    verbose: bool, option to print all output
+    m:              class,      Model
+    const:          class,      Constants
+    rate_factor:    function,   Calculate the rate factor from Glen's Flow Law
+    T_bulk:         float,      Temperature input to rate factor function (C)
+    tau_dx:         float,      Driving stress input directly (Pa)
+    gamma_plus:     bool,       Optional, Determine gama_plus from the logarithmic regression with Pe Number
+    verbose:        bool,       Print all output
 
     Output
     ----------
-    T:      1-D array,  Analytic solution for ice temperature
+    T:              1-D array,  Analytic solution for ice temperature
     """
 
     # Thermal constants
@@ -156,25 +157,26 @@ def Meyer_T(m,const=constants(),
     Uses the contact problem in applied mathematics
 
     Assumptions:
-        1) horizontal advection is treated as an energy sink
-        2) vertical advection is constant in depth (they do some linear analysis in their supplement)
-        4) base is at the melting temperature
+        1) Horizontal advection is treated as an energy sink by subtracting from the shear heat source
+        2) Vertical advection is constant in depth (they do some linear analysis in their supplement)
+        3) All ice properties, including rate factor A, are constant
+        4) Ice base is at the melting temperature
         5) Melting temperature is 0 through the column
 
     Parameters
     ----------
-    m:          class,  Model
-    const:      class,  Constants
-    rateFactor: func,   function for the rate factor, A in Glen's Law
-    T_ratefactor:   float, Temperature input to rate factor function (C)
-    Tb:         float,  Basal temperature, at the pressure melting point
-    lam:        float,  Paramaterized horizontal advection term
-                        Meyer and Minchew (2018) eq. 11
-    verbose: bool, option to print all output
+    m:              class,  Model
+    const:          class,  Constants
+    rateFactor:     func,   function for the rate factor, A in Glen's Law
+    T_bulk:         float, Temperature input to rate factor function (C)
+    Tb:             float,  Basal temperature, at the pressure melting point
+    lam:            float,  Paramaterized horizontal advection term
+                            Meyer and Minchew (2018) eq. 11
+    verbose:        bool, option to print all output
 
     Output
     ----------
-    T:      1-D array,  Analytic solution for ice temperature
+    T:              1-D array,  Analytic solution for ice temperature
     """
 
     # Thermal constants
@@ -239,7 +241,7 @@ def Perol_T(m,const=constants(),
 
     Assumptions:
         1) Bed is at the melting point
-        2) All constants are temperature independent (rate factor uses T=-10)
+        2) All constants are temperature independent
 
     Parameters
     ----------
@@ -247,7 +249,7 @@ def Perol_T(m,const=constants(),
     const:      class,  Constants
     rateFactor: func,   function for the rate factor, A in Glen's Law
     T_bulk      float, Temperature input to the rate factor function, A(T)
-    verbose: bool, option to print all output
+    verbose:    bool, option to print all output
 
     Output
     ----------
