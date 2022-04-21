@@ -15,10 +15,11 @@ July 15, 2021
 import numpy as np
 import unittest
 
-from constants import constants
+from iceotherm.lib.constants import constants
 const = constants()
-from ice_properties import *
-from numerical_model import ice_temperature
+from iceotherm.lib.ice_properties import *
+from iceotherm.lib.numerical_model import ice_temperature
+
 
 class TestNumericalFunctions(unittest.TestCase):
 
