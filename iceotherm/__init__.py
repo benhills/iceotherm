@@ -5,5 +5,5 @@
 # Copyright © 2021 bhills <benjaminhhills@gmail.com>
 # Distributed under terms of the GNU GPL3.0 license.
 """
-Skeleton import icetemperature
+Skeleton import iceotherm
 """

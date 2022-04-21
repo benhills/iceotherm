@@ -5,6 +5,7 @@ This repository contains a set of 1.n-dimensional thermal models for glacier and
 Robin (1955), Rezvanbehbahani et al. (2019), Meyer and Minchew (2018), Perol and Rice (2015)
 All four solutions are provided as functions in:
 - ./icetemperature/lib/analytical_solutions.py
+
 A quasi-analytical ODE solution from Perol and Rice (2015) is a melting-point bounded version of their analytical solution for temperature in ice-stream shear margins. We reproduce that solution here:
 - ./icetemperature/lib/shearmargin_ode.py
 
