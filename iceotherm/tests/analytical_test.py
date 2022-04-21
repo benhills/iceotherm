@@ -43,6 +43,7 @@ class TestAnalyticalSolutions(unittest.TestCase):
         H = 2000.
         adot = .1
         m = ice_temperature(Ts=Ts,qgeo=qgeo,H=H,adot=adot)
+        m.gamma = None
         T = Rezvan_T(m)
         self.assertTrue(np.all(T>-51.))
         self.assertTrue(np.all(T<0.))

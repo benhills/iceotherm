@@ -29,9 +29,19 @@ class TestIceProperties(unittest.TestCase):
         krho = conductivity(T,rho,const)
         self.assertTrue(krho>.8)
         self.assertTrue(krho<3.5)
+        T = -50.+273.
+        rho = 800.
+        krho = conductivity(T,rho,const)
+        self.assertTrue(krho>.8)
+        self.assertTrue(krho<3.5)
+
 
     def test_heatcapacity(self):
         T = -50.
+        cp = heat_capacity(T,const)
+        self.assertTrue(cp>1500.)
+        self.assertTrue(cp<2100.)
+        T = -50.+273
         cp = heat_capacity(T,const)
         self.assertTrue(cp>1500.)
         self.assertTrue(cp<2100.)
