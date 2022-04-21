@@ -1,37 +1,27 @@
-This repository contains a set of models for glacier and ice-sheet temperature. Each is based on some previously published model from the glaciology literature. More will be added if/when the literature expands.
-
-Data
----
-
-Constants are defined in a class at:
-- ./icetemperature/lib/constants.py
-with most being from Cuffey and Paterson (2010)
-
-South Pole Lake is included as a case study. The relevant data (Kahle et al., 2021; Price et al., 2002) are included at:
-- ./data/
-
-Siple Coast ice stream temperatures are included as a case study. The relevant data are embedded within the jupyter notebook.
-
-Models
----
+This repository contains a set of 1.n-dimensional thermal models for glacier and ice-sheet temperature. Each is based on some previously published model from the glaciology literature. More will be added if/when the literature expands.
 
 1) Analytical Solutions
 
 Robin (1955), Rezvanbehbahani et al. (2019), Meyer and Minchew (2018), Perol and Rice (2015)
 All four solutions are provided as functions in:
 - ./icetemperature/lib/analytical_solutions.py
+A quasi-analytical ODE solution from Perol and Rice (2015) is a melting-point bounded version of their analytical solution for temperature in ice-stream shear margins. We reproduce that solution here:
+- ./icetemperature/lib/shearmargin_ode.py
 
 2) Numerical Solution
 
-Based on Weertman (1968)
-This is the predominant model explored by Hills et al. (2022).
+Weertman (1968)
+This is the predominant model explored by Hills et al. (2022a, 2022b).
 - ./icetemperature/lib/numerical_model.py
 
-Testing
+Tests of the numerical model against analytical solutions are included at ./notebooks/analytical_solutions.ipynb
+
+Case studies
 ---
 
-Unit testing is done for all scripts.
-- ./icetemperature/tests/
+Ice temperature and flow history at South Pole Lake. The relevant data include surface boundary conditions from the South Pole Ice Core (Kahle et al., 2021) and in-situ temperature measurements from the IceCube/AMANDA array (Price et al., 2002). Relevant data are saved at ./data/ and example jupyter notebooks which recreate the modeling experiments from Hills et al. (2022) are in ./notebooks/south_pole_lake_example.ipynb.
+
+Siple Coast ice stream temperature and shear-margin thermodynamics. All the relevant data for this example are embedded within the jupyter notebook at ./notebooks/siple_coast_example.ipynb.
 
 Dependencies
 ---
