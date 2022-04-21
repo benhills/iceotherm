@@ -25,5 +25,6 @@ setup(
     author_email='bhills@uw.edu',
     license='GNU GPL-3.0',
     packages=packages,
-    install_requires=requires
+    install_requires=requires,
+    test_suite='nose.collector'
 )
