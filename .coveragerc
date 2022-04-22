@@ -1,2 +1,2 @@
 [run]
-omit = iceotherm/lib/cylindrical_stefan/*model.py
+omit = ./iceotherm/lib/cylindricalstefan/*model.py
