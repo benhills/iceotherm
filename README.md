@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 This repository contains a set of 1.n-dimensional thermal models for glacier and ice-sheet temperature. Each is based on some previously published model from the glaciology literature. More will be added if/when the literature expands.
 
 1) Analytical Solutions
