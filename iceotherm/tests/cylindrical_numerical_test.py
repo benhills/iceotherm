@@ -16,7 +16,7 @@ import numpy as np
 import unittest
 
 from iceotherm.lib.cylindricalstefan import instantaneous_mixing_model as inst
-from iceotherm.lib.cylindricalstefan import thermal_model_2d as th2d
+from iceotherm.lib.cylindricalstefan import thermal_2d_model as th2d
 
 class TestNumericalModels(unittest.TestCase):
 
