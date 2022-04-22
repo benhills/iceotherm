@@ -1,0 +1,2 @@
+[run]
+omit = ./iceotherm/lib/cylindricalstefan/*model.py
