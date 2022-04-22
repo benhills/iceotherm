@@ -19,11 +19,15 @@ const = constantsHotPointDrill()
 from iceotherm.lib.cylindricalstefan.concentration_functions import Tf_depression,Hmix
 from iceotherm.lib.cylindricalstefan.analytical_pure_solution import analyticalMelt
 
-import dolfin
+try:
+    import dolfin
+    fe_enabled = True
+except ImportError:
+    fe_enabled = False
 
 # -----------------------------------------------------------------------------------------------------
 
-class double_diffusion_model():
+class model():
     """
 
     *** This model is still in development.

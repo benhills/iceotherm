@@ -14,15 +14,19 @@ April 22, 2020
 
 import numpy as np
 
-from cylindricalstefan.lib.constants import constantsHotPointDrill
+from iceotherm.lib.constants import constantsHotPointDrill
 const = constantsHotPointDrill()
 
-import dolfin
-dolfin.parameters['allow_extrapolation'] = True
+try:
+    import dolfin
+    dolfin.parameters['allow_extrapolation'] = True
+    fe_enabled = True
+except ImportError:
+    fe_enabled = False
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
-class thermal_model_2d():
+class model():
     """
     This is a 2-dimensional model for heat transfer in cylindrical coordinates.
     The purpose of the model is to test whether we can justify a reduction to

@@ -13,32 +13,41 @@ September 9, 2019
 """
 
 import unittest
-
-from iceotherm.lib.cylindricalstefan.double_diffusion_model import double_diffusion_model
+from iceotherm.lib.cylindricalstefan import double_diffusion_model as ddiff
 
 class TestDoubleDiffusion(unittest.TestCase):
 
-    def test_double_diffusion(self):
-        # Import model
-        mod = double_diffusion_model()
+    def test_instantiation(self):
+        m = ddiff.model()
 
-        # Source timing
-        mod.source_timing = 3000.
-        mod.source_duration = 500.
+    def test_log_transform(self):
+        m = ddiff.model()
+        m.log_transform()
 
-        # Flags for solution solves
-        mod.flags.append('solve_sol_temp')
-        mod.flags.append('solve_sol_mol')
+    @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
+    def test_domain(self):
+        m = ddiff.model()
+        m.flags.append('solve_sol_temp')
+        m.flags.append('solve_sol_mol')
+        m.get_domain()
 
-        # Model setup
-        mod.log_transform()
-        mod.get_domain()
-        mod.get_initial_conditions()
-        mod.save_times = mod.ts[::25]
-        mod.get_boundary_conditions()
+    @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
+    def test_initialization(self):
+        m = ddiff.model()
+        m.source_timing = 3000.
+        m.source_duration = 500.
+        m.get_initial_conditions()
 
-        # Model run
-        mod.run()
+    @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
+    def test_bcs(self):
+        m = ddiff.model()
+        m.get_boundary_conditions()
+
+    @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
+    def test_run(self):
+        m = ddiff.model()
+        m.save_times = m.ts[::25]
+        m.run()
 
 if __name__ == '__main__':
     unittest.main()
