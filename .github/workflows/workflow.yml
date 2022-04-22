@@ -31,7 +31,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest --cov=./iceotherm/lib/ --cov-report=xml --omit=iceotherm/lib/cylindricalstefan/*model.py
+        pytest --cov=./iceotherm/lib/ --cov-report=xml --cov-config=./.coveragerc
         #coverage run --source iceotherm --omit=iceotherm/tests/* -m pytest 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
