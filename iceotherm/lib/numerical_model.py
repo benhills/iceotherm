@@ -12,10 +12,10 @@ April 28, 2020
 import numpy as np
 from scipy import sparse
 from scipy.integrate import cumtrapz
-from .analytical_solutions import *
-from .ice_properties import *
-from .supporting_functions import *
-from .constants import constants
+from iceotherm.lib.analytical_solutions import *
+from iceotherm.lib.ice_properties import *
+from iceotherm.lib.supporting_functions import *
+from iceotherm.lib.constants import constants
 
 # Instantiate the constants class
 const = constants()

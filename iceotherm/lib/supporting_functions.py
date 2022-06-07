@@ -9,7 +9,7 @@ April 28, 2020
 """
 
 import numpy as np
-from .constants import constants
+from iceotherm.lib.constants import constants
 const = constants()
 from scipy.interpolate import interp1d
 

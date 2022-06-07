@@ -14,9 +14,9 @@ from scipy.special import gammaincc as γincc
 from scipy.special import erf
 from scipy.integrate import quad
 from scipy.special import lambertw
-from .constants import constants
+from iceotherm.lib.constants import constants
 
-from .ice_properties import *
+from iceotherm.lib.ice_properties import *
 
 def Robin_T(m,T_bulk=None,const=constants(),melt=True,verbose=False):
     """

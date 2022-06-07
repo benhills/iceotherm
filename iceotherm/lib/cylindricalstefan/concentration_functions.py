@@ -165,7 +165,7 @@ def Tf_depression(C,solute='methanol',linear=False,data_dir=None,const=const):
         return Tf
     else:
         if data_dir is None:
-            data_dir='./data/'
+            data_dir='../../../data/'
         if solute=='methanol':
             # Get percent by mass
             PBM = C_pbm(C,const.rhom)

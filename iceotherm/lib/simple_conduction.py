@@ -10,7 +10,7 @@ Aug 1, 2018
 
 import numpy as np
 from scipy.special import erfc
-from .constants import constants
+from iceotherm.lib.constants import constants
 const = constants()
 
 # Analytic solutions to conduction problems
