@@ -53,7 +53,7 @@ References
 - Crepeau, J., & Siahpush, A. (2008). Analytical solutions to the Stefan problem with internal heat generation. Heat and Mass Transfer, 44, 787–794.
 - Cuffey, K., & Paterson, W. S. B. (2010). The Physics of Glaciers (Fourth). Butterworth-Heinemann.
 - Flick, E. W. (1998). Industrial Solvents Handbook (5th ed.). Westwood, NJ: Noyes Data Corporation.
-- Hills, B. H., Winebrenner, D. P., Elam, W. T., Kintner P. (2020). Avoiding slush for hot-point drilling of glacier boreholes. Annals of Glaciology.
+- Hills, B. H., Winebrenner, D. P., Elam, W. T., Kintner P. (2021). Avoiding slush for hot-point drilling of glacier boreholes. Annals of Glaciology.
 - Hills, B. H., Christianson, K., Hoffman, A. O., Fudge, T. J., Holschuh, N., Kahle, E. C., Conway, H., Christian, J. E., Horlings, A. N., O’Connor, G. K., Steig, E. J. (2022a). Geophysics and thermodynamics at South Pole Lake indicate stability and a regionally thawed bed. Geophysical Research Letters.
 - Hills, B. H., Christianson, K., Jacobel, R. W., Conway, H., Pettersson, R. (2022b). Radar attenuation demonstrates advective cooling in the Siple Coast ice streams. Journal of Glaciology.
 - Humphrey, N., & Echelmeyer, K. (1990). Hot-water drilling and bore-hole closure in cold ice. Journal of Glaciology, 36(124), 287–298.
