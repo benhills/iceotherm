@@ -26,7 +26,7 @@ except ImportError:
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
-class model():
+class thermal_2d_model():
     """
     This is a 2-dimensional model for heat transfer in cylindrical coordinates.
     The purpose of the model is to test whether we can justify a reduction to

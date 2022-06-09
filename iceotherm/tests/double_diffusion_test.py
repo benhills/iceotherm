@@ -18,34 +18,34 @@ from iceotherm.lib.cylindricalstefan import double_diffusion_model as ddiff
 class TestDoubleDiffusion(unittest.TestCase):
 
     def test_instantiation(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
 
     def test_log_transform(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
         m.log_transform()
 
     @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
     def test_domain(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
         m.flags.append('solve_sol_temp')
         m.flags.append('solve_sol_mol')
         m.get_domain()
 
     @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
     def test_initialization(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
         m.source_timing = 3000.
         m.source_duration = 500.
         m.get_initial_conditions()
 
     @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
     def test_bcs(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
         m.get_boundary_conditions()
 
     @unittest.skipIf(not ddiff.fe_enabled, 'No dolfin')
     def test_run(self):
-        m = ddiff.model()
+        m = ddiff.double_diffusion_model()
         m.save_times = m.ts[::25]
         m.run()
 

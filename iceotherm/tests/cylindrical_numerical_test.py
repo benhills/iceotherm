@@ -21,12 +21,12 @@ from iceotherm.lib.cylindricalstefan import thermal_2d_model as th2d
 class TestNumericalModels(unittest.TestCase):
 
     def test_instantaneous_model(self):
-        m = inst.model()
+        m = inst.instantaneous_mixing_model()
 
     @unittest.skipIf(not inst.fe_enabled, 'No dolfin')
     def test_instantaneous_melt(self):
         # Import model
-        m = inst.model()
+        m = inst.instantaneous_mixing_model()
 
         # Model setup
         m.log_transform()
@@ -41,7 +41,7 @@ class TestNumericalModels(unittest.TestCase):
     @unittest.skipIf(not inst.fe_enabled, 'No dolfin')
     def test_instantaneous_freeze(self):
         # Import the model
-        m = inst.model()
+        m = inst.instantaneous_mixing_model()
 
         # Model setup
         m.log_transform()
@@ -55,12 +55,12 @@ class TestNumericalModels(unittest.TestCase):
         m.run()
 
     def test_2d_instantiation(self):
-        m = th2d.model()
+        m = th2d.thermal_2d_model()
 
     @unittest.skipIf(not th2d.fe_enabled, 'No dolfin')
     def test_2d(self):
         # Import model
-        m = th2d.model()
+        m = th2d.thermal_2d_model()
 
         # Model setup
         m.log_transform()

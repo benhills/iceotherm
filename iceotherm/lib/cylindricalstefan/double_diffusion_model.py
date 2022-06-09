@@ -27,7 +27,7 @@ except ImportError:
 
 # -----------------------------------------------------------------------------------------------------
 
-class model():
+class double_diffusion_model():
     """
 
     *** This model is still in development.

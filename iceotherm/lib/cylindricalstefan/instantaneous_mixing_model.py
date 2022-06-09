@@ -27,7 +27,7 @@ except ImportError:
 
 # --------------------------------------------------------------------------------------------
 
-class model():
+class instantaneous_mixing_model():
     """
     This is a 1-dimensional thermal model for borehole evolution.
     The hole melts and freezes according to the Stefan condition.
