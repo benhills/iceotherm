@@ -1,36 +1,49 @@
+# iceotherm
+
 This repository contains a set of 1.n-dimensional thermal models for glacier and ice-sheet temperature. Each is based on some previously published model from the glaciology literature. More will be added if/when the literature expands.
 
-1) Analytical Solutions
+**1) Analytical Solutions**
 
 Robin (1955), Rezvanbehbahani et al. (2019), Meyer and Minchew (2018), Perol and Rice (2015)
 All four solutions are provided as functions in:
-- ./icetemperature/lib/analytical_solutions.py
+
+./icetemperature/lib/analytical_solutions.py
 
 A quasi-analytical ODE solution from Perol and Rice (2015) is a melting-point bounded version of their analytical solution for temperature in ice-stream shear margins. We reproduce that solution here:
-- ./icetemperature/lib/shearmargin_ode.py
 
-2) Numerical Solution
+./icetemperature/lib/shearmargin_ode.py
+
+**2) Numerical Solution**
 
 Weertman (1968)
 This is the predominant model explored by Hills et al. (2022a, 2022b).
-- ./icetemperature/lib/numerical_model.py
+
+./icetemperature/lib/numerical_model.py
 
 Tests of the numerical model against analytical solutions are included at ./notebooks/analytical_solutions.ipynb
 
 Case studies
 ---
 
-Ice temperature and flow history at South Pole Lake. The relevant data include surface boundary conditions from the South Pole Ice Core (Kahle et al., 2021) and in-situ temperature measurements from the IceCube/AMANDA array (Price et al., 2002). Relevant data are saved at ./data/ and example jupyter notebooks which recreate the modeling experiments from Hills et al. (2022) are in ./notebooks/south_pole_lake_example.ipynb.
+**Ice temperature and flow history at South Pole Lake.** 
 
-Siple Coast ice stream temperature and shear-margin thermodynamics. All the relevant data for this example are embedded within the jupyter notebook at ./notebooks/siple_coast_example.ipynb.
+The relevant data include surface boundary conditions from the South Pole Ice Core (Kahle et al., 2021) and in-situ temperature measurements from the IceCube/AMANDA array (Price et al., 2002). Relevant data are saved at ./data/ and example jupyter notebooks which recreate the modeling experiments from Hills et al. (2022a) are in ./notebooks/publication_figures/south_pole_lake_example.ipynb.
+
+**Siple Coast ice-stream temperature and shear-margin thermodynamics.** 
+
+Hills et al. (2022b) argue that ice-stream shear margins are colder than previously thought due to longitudinal ice advection, so the ice stream acts as a conveyor of cold ice from upstream. All the relevant data for this example are embedded within the jupyter notebook at ./notebooks/publication_figures/siple_coast_example.ipynb.
 
 
-Slush formation in thermally-drilled glacier boreholes. This work was done to aid in design of a hot-point drill, the Ice Diver, at the Applied Physics Lab, University of Washington. Please cite the associated text (Hills et al., 2020) anywhere that this repository is used. Mechanically-drilled glacier boreholes are easily stabilized with an antifreeze solution and can be held open for years. However, attempts to stabilize thermally-drilled holes have resulted in a plug of slush freezing in the hole which effectively freezes the hole shut. In essense, molecular diffusion (movement of the solute particles in the solution) is at least an order of magnitude slower than thermal diffusion in the solution, which creates an area of constitutional supercooling inside the hole (Worster, 2000). Therefore, refreezing happens in small particles within the solution rather than accretion on the borehole wall.
+**Slush formation in thermally-drilled glacier boreholes.** 
+
+This work was done to aid in design of a hot-point drill, the Ice Diver, at the Applied Physics Lab, University of Washington (Hills et al., 2021). Mechanically-drilled glacier boreholes are easily stabilized with an antifreeze solution and can be held open for years. However, attempts to stabilize thermally-drilled holes have resulted in a plug of slush freezing in the hole which effectively freezes the hole shut. In essense, molecular diffusion (movement of the solute particles in the solution) is at least an order of magnitude slower than thermal diffusion in the solution, which creates an area of constitutional supercooling inside the hole (Worster, 2000). Therefore, refreezing happens in small particles within the solution rather than accretion on the borehole wall.
 
 Dependencies
 ---
 
 Python 3 (other versions may work, but they are not tested). Also, numpy and scipy.
+
+Optional:
 [FEniCS]. I recommend either the Anaconda or the Docker install.
 
 References
