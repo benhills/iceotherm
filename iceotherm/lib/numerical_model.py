@@ -180,7 +180,7 @@ class ice_temperature():
         if 'long_advection' in self.flags:
             v_x = self.Uslide + np.insert(cumtrapz(eps_xz,self.z),0,0)    # Horizontal velocity
             # Horizontal Temperature Gradients, Weertman (1968) eq. 6b
-            dTdx = self.dTs + (self.T-self.Ts)/2. * (self.dH/self.H - self.da/self.adot)
+            dTdx = self.dTs + np.maximum(self.T-self.Ts,0.)/2. * (self.dH/self.H - self.da/self.adot)
             # Final Source Term
             self.Sdot -= v_x*dTdx
 
